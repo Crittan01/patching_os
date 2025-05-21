@@ -1,0 +1,3 @@
+---
+# defaults file for roles/validacion_post
+validacion_post_log_dir: "/var/log/ansible_patches"

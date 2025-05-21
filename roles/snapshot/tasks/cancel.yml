@@ -1,0 +1,75 @@
+---
+# tasks file cancel for roles/snapshot
+- name: Validacion y Cancel Creacion de Snapshot en la NO VM
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        cancel_details: {}
+
+    - name: Proceso de Cancel de Snapshot
+      when:
+        - previous_results.pre_validation.can_continue | bool
+      block:
+        - name: Registrar Cancel de Snapshot
+          ansible.builtin.set_fact:
+            cancel_details:
+              reason: "Variables requeridas con valor null"
+              system_vendor: "{{ ansible_system_vendor }}"
+              virtualization_type: "{{ ansible_virtualization_type }}"
+              virtualization_role: "{{ ansible_virtualization_role }}"
+
+        - name: Registrar error de Cancel de Snapshot
+          ansible.builtin.set_fact:
+            cancel_details:
+              "{{ cancel_details | combine({
+                'backup': {
+                  'error': ansible_failed_result.msg | default('Error registrando cancel') | regex_replace('\n', ' '),
+                  'type': 'BACKUP_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                  'details': {
+                    'reason': 'Variables requeridas con valor null',
+                    'tipo_vmware': ansible_virtualization_type,
+                    'role_vmware': ansible_virtualization_role,
+                    'vcenter_vmware': vcenter_vmware}}}) }}"
+      rescue:
+        - name: Crear JSON de resultados
+          ansible.builtin.template:
+            src: report_cancel.j2
+            dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+          #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_cancel.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_cancel.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

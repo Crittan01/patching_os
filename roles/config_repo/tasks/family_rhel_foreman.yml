@@ -1,0 +1,218 @@
+---
+# tasks file for roles/config_repo
+- name: Validar estado previo y ejecutar configuracion
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        repo_states: []
+        repos_creados: []
+        existing_repos: { "files": [] }
+        repo_contents: { "results": [] }
+        repo_error: {}
+
+    - name: BLOQUE verificar Repositorio
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+      block:
+        - name: Validar acceso al servidor de repositorios
+          block:
+            - name: Agregar entrada a /etc/hosts
+              ansible.builtin.lineinfile:
+                path: /etc/hosts
+                line: "{{ config_repo_ip_repo }} {{ config_repo_servidor_repo }}"
+                state: present
+
+            - name: Verificar conectividad con servidor de repos
+              ansible.builtin.wait_for:
+                host: "{{ config_repo_servidor_repo }}"
+                port: 443
+                timeout: 10
+              register: repo_connectivity
+          rescue:
+            - name: Registrar error de conectividad
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'connectivity': {
+                  'error': ansible_failed_result.msg | default('Error en conectividad') | regex_replace('\n', ' '),
+                  'type': 'CONNECTIVITY_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        - name: Gestión de repos existentes
+          block:
+            - name: Obtener URLs de repositorio RedHat
+              when:
+                - ansible_distribution == "RedHat"
+              ansible.builtin.set_fact:
+                repos_urls: "{{ config_repo_repos_config[ansible_distribution][ansible_distribution_major_version][ansible_distribution_version] }}"
+
+            - name: Obtener URLs de repositorio CentOS - Core
+              when:
+                - ansible_distribution == "CentOS"
+                - ansible_distribution_release != "Stream"
+              ansible.builtin.set_fact:
+                repos_urls: "{{ config_repo_repos_config[ansible_distribution][ansible_distribution_major_version][ansible_distribution_version] }}"
+
+            - name: Obtener URLs de repositorio CentOS - Stream
+              when:
+                - ansible_distribution == "CentOS"
+                - ansible_distribution_release == "Stream"
+              ansible.builtin.set_fact:
+                repos_urls: "{{ config_repo_repos_config[ansible_distribution][ansible_distribution_major_version][ansible_distribution_release] }}"
+
+            - name: Obtener URLs de repositorio OracleLinux 8/9
+              when:
+                - ansible_distribution == "OracleLinux"
+                - ansible_distribution_major_version == "8" or ansible_distribution_major_version == "9"
+              ansible.builtin.set_fact:
+                repos_urls: "{{ config_repo_repos_config[ansible_distribution][ansible_distribution_major_version][ansible_distribution_release] }}"
+
+            - name: DEGUG - Obtener URLs de repositorio
+              ansible.builtin.debug:
+                var: repos_urls
+
+            - name: Listar repositorios existentes
+              ansible.builtin.find:
+                paths: /etc/yum.repos.d
+                patterns: "*.repo"
+                excludes: "local-*"
+              register: existing_repos
+
+            - name: Leer contendido de repositorios existentes
+              ansible.builtin.slurp:
+                src: "{{ item.path }}"
+              register: repo_contents
+              loop: "{{ existing_repos.files }}"
+
+            - name: Verificar cada repositorio
+              ansible.builtin.uri:
+                url: "{{ item.url }}/repodata/repomd.xml"
+                status_code: [200, 404]
+                validate_certs: false
+                timeout: 10
+              register: repo_check
+              loop: "{{ repos_urls }}"
+              loop_control:
+                label: "{{ item.name }}"
+
+            - name: DEGUG - Verificar cada repositorio
+              ansible.builtin.debug:
+                var: repo_check
+          rescue:
+            - name: Registrar error de backup
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'backup': {
+                  'error': ansible_failed_result.msg | default('Error listando paquetes iniciales') | regex_replace('\n', ' '),
+                  'type': 'BACKUP_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        - name: Configuración de nuevos repos
+          block:
+            - name: Inicializar lista de estados de Repos
+              ansible.builtin.set_fact:
+                repo_states: []
+
+            - name: Actualizar estados de repos
+              ansible.builtin.set_fact:
+                repo_states: "{{ repo_states + [{'name': item.item.name,
+                  'url': item.item.url,
+                  'status': item.status,
+                  'priority': item.item.priority}] }}"
+              loop: "{{ repo_check.results }}"
+
+            - name: DEGUG - Actualizar estados de repos
+              ansible.builtin.debug:
+                var: repo_states
+
+            - name: Añadir repositorio locales
+              when: item.status == 200
+              ansible.builtin.yum_repository:
+                name: "local-{{ ansible_distribution | lower }}{{ ansible_distribution_version }}-{{ item.name }}"
+                description: "local-{{ ansible_distribution | lower }}{{ ansible_distribution_version }}-{{ item.name }}"
+                baseurl: "{{ item.url }}"
+                sslverify: false
+                gpgcheck: false
+                state: present
+                enabled: true
+              register: repo_add_result
+              loop: "{{ repo_states }}"
+
+            - name: DEBUG - Añadir repositorio locales
+              ansible.builtin.debug:
+                var: repo_add_result
+
+            - name: Capturar nombres de repos locales desde repo_add_result
+              ansible.builtin.set_fact:
+                repos_creados: "{{ repo_add_result.results |
+                  map(attribute='repo') |
+                  list }}"
+
+            - name: DEBUG - Capturar nombres de repos locales desde repo_add_result
+              ansible.builtin.debug:
+                msg:
+                  - "Repos Creados: {{ repos_creados }}"
+          rescue:
+            - name: Registrar error de configuración
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'config': {
+                  'error': ansible_failed_result.msg | default('Error en configuracion') | regex_replace('\n', ' '),
+                  'type': 'CONFIG_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+      rescue:
+        - name: Registrar error del BLOQUE verificar Repositorio
+          ansible.builtin.set_fact:
+            repo_error: "{{ repo_error | combine({
+              'patch_block': {
+              'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+              | default('Error en bloque de verificar Repositorio') | regex_replace('\n', ' '),
+              'type': 'VERIFY_REPO_BLOCK_ERROR',
+              'details': {
+              'task_name': ansible_failed_result.task_name | default('unknown'),
+              'module_name': ansible_failed_result.module_name | default('unknown'),
+              'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+              'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' '),
+              'module_args': ansible_failed_result.module_args | default({}) | to_json
+              }
+              }}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Registrar error general del proceso de configuracion
+      ansible.builtin.set_fact:
+        repo_error: "{{ repo_error | default({}) | combine({
+          'general_error': {
+          'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+          | default('Error General en el Proceso de configuracion') | regex_replace('\n', ' '),
+          'type': 'GENERAL_ERROR',
+          'module': ansible_failed_result.module_name | default('unknown'),
+          'host': inventory_hostname,
+          'task_args': ansible_failed_result.module_args | default({}) | to_json
+          }}) }}"
+
+    - name: Crear JSON de resultados - error general del proceso de configuracion
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

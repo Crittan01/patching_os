@@ -1,0 +1,270 @@
+---
+# tasks file take_snap_standalone for roles/snapshot
+- name: Validacion y Creacion de Snapshot en la VM
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        snapshot_error: {}
+        snapshot_result:
+          changed: false
+          stdout: ""
+          stderr: ""
+          msg: "No action taken - initial state"
+          rc: 0
+        snapshot_name: "{{ snapshot_name }}"
+        snapshot_description: "{{ snapshot_description }}"
+        clean_vm_id: ""
+        clean_snap_id: ""
+        snap_exists: {}
+        validation_errors: []
+        connection_validated: false
+
+    - name: Validar configuracion
+      ansible.builtin.set_fact:
+        config_validation: "{{
+          {'tipo_vmware': tipo_vmware == 'standalone',
+          'vcenter_exists': vcenter_vmware in esxi_credentials,
+          'expected_type': 'standalone' if vcenter_vmware in esxi_credentials else 'vcenter'} }}"
+
+    - name: Verificar conectividad SSH
+      ansible.builtin.wait_for:
+        host: "{{ vcenter_vmware }}"
+        port: 22
+        timeout: 30
+      register: ssh_check
+      delegate_to: localhost
+      retries: 2
+      delay: 15
+      until: ssh_check is success
+
+    - name: Validar credenciales ESXi
+      when: ssh_check is success
+      block:
+        - name: Probar conexion SSH
+          ansible.builtin.raw: |
+            set -o pipefail
+            "who"
+          register: credential_check
+          retries: 5
+          delay: 30
+          until: credential_check is success
+          changed_when: false
+          delegate_to: "{{ vcenter_vmware }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "IACOLCOAUTO"
+            ansible_password: "{{ esxi_cred }}"
+            ansible_python_interpreter: /bin/sh
+            ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+            ansible_ssh_timeout: 30
+      rescue:
+        - name: Registrar error de credenciales
+          ansible.builtin.set_fact:
+            snapshot_error: "{{ snapshot_error | combine({
+              'credentials': {
+                'error': ansible_failed_result.msg | default('Error de autenticación') | regex_replace('\n', ' '),
+                'type': 'AUTH_ERROR',
+                'task': ansible_failed_task.name | default('unknown'),
+                'details': {
+                  'host': vcenter_vmware,
+                  'user': esxi_credentials[vcenter_vmware].username,
+                  'error_detail': vm_info.msg | default('Unknown error')
+                }}}) }}"
+
+    - name: Registrar error si la configuracion no coincide
+      when: not config_validation.tipo_vmware or not config_validation.vcenter_exists
+      ansible.builtin.set_fact:
+        snapshot_error: "{{ snapshot_error | combine({
+          'config_mismatch': {
+            'error': 'Configuracion incorrecta de VMware' | default(ansible_failed_result.msg) | regex_replace('\n', ' '),
+            'type': 'CONFIG_ERROR',
+            'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+            'details': {
+              'tipo_actual': tipo_vmware,
+              'vcenter_actual': vcenter_vmware,
+              'tipo_esperado': config_validation.expected_type,
+              'razon': 'Host configurado como standalone pero no existe en esxi_credentials' if not config_validation.vcenter_exists else
+                'Tipo de VMware no coincide con la configuracion esperada'}}}) }}"
+
+    - name: Proceso de Snapshot standalone
+      when:
+        - previous_results.pre_validation.can_continue | bool
+        - snapshot_error | length == 0
+      block:
+        - name: Obtener credenciales de ESXi
+          ansible.builtin.set_fact:
+            esxi_user: "{{ esxi_credentials[vcenter_vmware].username }}"
+            esxi_password: "{{ esxi_credentials[vcenter_vmware].password }}"
+          no_log: true
+
+        - name: Determinar tipo de VMware
+          ansible.builtin.debug:
+            msg:
+              - "El servidor {{ inventory_hostname }} está en {{ tipo_vmware | upper }} ({{ vcenter_vmware }})"
+
+        - name: Verificar existencia de VM
+          block:
+            - name: Obtener listado de VMs (con su VMID)
+              ansible.builtin.raw: |
+                vim-cmd vmsvc/getallvms
+              register: all_vms
+              retries: 5
+              delay: 30
+              until: all_vms is success
+              changed_when: false
+              delegate_to: "{{ vcenter_vmware }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "IACOLCOAUTO"
+                ansible_password: "{{ esxi_cred }}"
+                ansible_python_interpreter: /bin/sh
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+                ansible_ssh_timeout: 30
+
+            - name: Validar existencia de VM
+              ansible.builtin.set_fact:
+                vm_exists: "{{ vm_name in (all_vms.stdout | string) }}"
+
+            - name: Registrar error si la VM no existe
+              when: not vm_exists
+              ansible.builtin.set_fact:
+                snapshot_error: "{{ snapshot_error | combine({
+                  'vm_not_found': {
+                    'error': 'VM no encontrada en el servidor ESXi' | default(ansible_failed_result.msg) | regex_replace('\n', ' '),
+                    'type': 'VM_ERROR',
+                    'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                    'details': {
+                      'vm_name': vm_name,
+                      'esxi_host': vcenter_vmware}}}) }}"
+
+        - name: Obtener y Crear Snapshot si la VM existe
+          when: vm_exists | bool
+          block:
+            - name: Obtener 'VMID' de la VM por Shell
+              ansible.builtin.raw: |
+                vim-cmd vmsvc/getallvms | grep "{{ vm_name }}" | awk '{print $1}'
+              register: id_vmname
+              retries: 5
+              delay: 30
+              until: id_vmname is success
+              changed_when: false
+              delegate_to: "{{ vcenter_vmware }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "IACOLCOAUTO"
+                ansible_password: "{{ esxi_cred }}"
+                ansible_python_interpreter: /bin/sh
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+                ansible_ssh_timeout: 30
+
+            - name: Limpiar VM ID
+              ansible.builtin.set_fact:
+                clean_vm_id: "{{ id_vmname.stdout | trim }}"
+              when: id_vmname is defined
+
+            - name: Consultar Existencia de Snapshot Ansible
+              ansible.builtin.raw: |
+                vim-cmd vmsvc/snapshot.get "{{ clean_vm_id }}"
+              register: snap_exists
+              retries: 5
+              delay: 30
+              until: snap_exists is success
+              changed_when: false
+              when: clean_vm_id | length > 0
+              delegate_to: "{{ vcenter_vmware }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "IACOLCOAUTO"
+                ansible_password: "{{ esxi_cred }}"
+                ansible_python_interpreter: /bin/sh
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+                ansible_ssh_timeout: 30
+
+            - name: Crear snapshot en la VM
+              ansible.builtin.raw: |
+                vim-cmd vmsvc/snapshot.create "{{ clean_vm_id }}" "{{ snapshot_name | quote }}" "{{ snapshot_description | quote }}" false false
+              register: snapshot_result
+              retries: 5
+              delay: 30
+              until: snapshot_result is success
+              changed_when: snapshot_name not in snap_exists.stdout
+              when:
+                - clean_vm_id | length > 0
+                - snapshot_name not in snap_exists.stdout
+              delegate_to: "{{ vcenter_vmware }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "IACOLCOAUTO"
+                ansible_password: "{{ esxi_cred }}"
+                ansible_python_interpreter: /bin/sh
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+                ansible_ssh_timeout: 30
+
+            - name: Establecer resultado de snapshot cuando ya exista
+              ansible.builtin.set_fact:
+                snapshot_result:
+                  changed: false
+                  stdout: "Snapshot already exists"
+                  stderr: ""
+                  msg: "Snapshot '{{ snapshot_name }}' already exists"
+                  rc: 0
+              when:
+                - clean_vm_id | length > 0
+                - snapshot_name in snap_exists.stdout
+
+            - name: Obtener 'Snapshot Id' de la VM por Shell con 'VMID' '{{ clean_vm_id }}'
+              ansible.builtin.raw: |
+                vim-cmd vmsvc/snapshot.get "{{ clean_vm_id }}" | grep -A1 "Snapshot Nam.*{{ snapshot_name }}" | grep "Snapshot Id" | awk '{print $4}' || echo ""
+              register: snap_id_vmname
+              retries: 5
+              delay: 30
+              until: snap_id_vmname is success
+              changed_when: false
+              delegate_to: "{{ vcenter_vmware }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "IACOLCOAUTO"
+                ansible_password: "{{ esxi_cred }}"
+                ansible_python_interpreter: /bin/sh
+                ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+                ansible_ssh_timeout: 30
+
+            - name: Limpiar 'Snapshot Id'
+              ansible.builtin.set_fact:
+                clean_snap_id: "{{ snap_id_vmname.stdout | trim }}"
+              when: snap_id_vmname is defined
+      rescue:
+        - name: Registrar error de Obtener y Crear Snapshot standalone
+          ansible.builtin.set_fact:
+            snapshot_error: "{{ snapshot_error | combine({
+              'snapshot': {
+                'error': ansible_failed_result.msg | default('Error en snapshot') | regex_replace('\n', ' '),
+                'type': 'SNAPSHOT_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                'raw_error': ansible_failed_result | to_json }}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_standalone.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+  rescue:
+    - name: Crear JSON de resultados en caso de error fatal
+      ansible.builtin.template:
+        src: report_standalone.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"

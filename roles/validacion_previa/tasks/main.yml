@@ -1,0 +1,124 @@
+---
+# tasks file for roles/validacion_previa
+- name: Validacion y Estado Inicial
+  block:
+    # Inicializacion de Variables
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        validation_error: {}
+        active_services_initial: {}
+
+    - name: Validar espacio en Disco
+      block:
+        # Validación de Filesystems Separados
+        - name: Validar si /boot esta presente
+          ansible.builtin.set_fact:
+            boot_separado: >
+              {{
+                ansible_mounts | map(attribute='mount') | select('equalto', '/boot') | list | length > 0
+              }}
+
+        - name: Validar si /usr esta presente
+          ansible.builtin.set_fact:
+            usr_separado: >
+              {{
+                ansible_mounts | map(attribute='mount') | select('equalto', '/usr') | list | length > 0
+              }}
+
+        - name: Validar si /tmp esta presente
+          ansible.builtin.set_fact:
+            tmp_separado: >
+              {{
+                ansible_mounts | map(attribute='mount') | select('equalto', '/tmp') | list | length > 0
+              }}
+
+        - name: Validar si /var esta presente
+          ansible.builtin.set_fact:
+            var_separado: >
+              {{
+                ansible_mounts | map(attribute='mount') | select('equalto', '/var') | list | length > 0
+              }}
+
+        - name: Establecer requisitos minimos de espacio dinamicamente
+          ansible.builtin.set_fact:
+            espacio_minimo:
+              "/": "{{
+                validacion_previa_fs_space_requirements.default if not tmp_separado and not var_separado and not boot_separado and not usr_separado else
+                (validacion_previa_fs_space_requirements.root.no_tmp_var_usr if not tmp_separado and not var_separado and not usr_separado else
+                (validacion_previa_fs_space_requirements.root.no_tmp_var_boot if not tmp_separado and not var_separado and not boot_separado else
+                (validacion_previa_fs_space_requirements.root.no_tmp_var if not tmp_separado and not var_separado else
+                (validacion_previa_fs_space_requirements.root.no_usr_var if not usr_separado and not var_separado else
+                (validacion_previa_fs_space_requirements.root.no_usr_tmp if not usr_separado and not tmp_separado else
+                (validacion_previa_fs_space_requirements.root.no_boot_tmp if not boot_separado and not tmp_separado else
+                (validacion_previa_fs_space_requirements.root.no_boot_var if not boot_separado and not var_separado else
+                (validacion_previa_fs_space_requirements.root.no_boot_usr if not boot_separado and not usr_separado else
+                (validacion_previa_fs_space_requirements.root.with_boot if not boot_separado else
+                (validacion_previa_fs_space_requirements.root.with_tmp if not tmp_separado else
+                (validacion_previa_fs_space_requirements.root.with_var if not var_separado else
+                (validacion_previa_fs_space_requirements.root.with_usr if not usr_separado else
+                validacion_previa_fs_space_requirements.root.all_separate)))))))))))) }}"
+              "/usr": "{{ validacion_previa_fs_space_requirements.separate_fs.usr if usr_separado else 0 }}"
+              "/var": "{{ validacion_previa_fs_space_requirements.separate_fs.var if var_separado else 0 }}"
+              "/tmp": "{{ validacion_previa_fs_space_requirements.separate_fs.tmp if tmp_separado else 0 }}"
+              "/boot": "{{ validacion_previa_fs_space_requirements.separate_fs.boot if boot_separado else 0 }}"
+
+        - name: Construir datos sobre FS
+          ansible.builtin.set_fact:
+            fs_intermedio: "{{ fs_intermedio | default({}) | combine({item.mount: fs_datos}) }}"
+          vars:
+            fs_datos:
+              requerido: "{{ (espacio_minimo[item.mount] | default(0)) | int }}"
+              disponible: "{{ ((item.size_available / 1024 / 1024) | float) | round(0) | int }}"
+              cumple: "{{ ((item.size_available / 1024 / 1024) | float) | int >= (espacio_minimo[item.mount] | default(0)) | int }}"
+          loop: "{{ ansible_mounts }}"
+          when: item.mount in espacio_minimo
+
+        - name: Validar si todos los puntos de montaje cumplen con los requisitos
+          ansible.builtin.set_fact:
+            todos_cumplen: "{{ fs_intermedio.values() | selectattr('cumple', 'equalto', false) | list | length == 0 }}"
+      rescue:
+        - name: Registrar Error de reinicio
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine({
+              'space_ckeck': {
+                'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
+                'type': 'SPACE_CHECK_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    - name: Validar Servicios
+      block:
+        # Validación de servicios inicial
+        - name: Obtener estado inicial de servicios
+          ansible.builtin.service_facts:
+
+        - name: Crear lista de servicios activos y en ejecución inicial
+          ansible.builtin.set_fact:
+            active_services_initial: "{{ ansible_facts.services |
+              dict2items |
+              selectattr('value.state', 'equalto', 'running') |
+              map(attribute='key') |
+              list }}"
+      rescue:
+        - name: Registrar error de validación de servicios
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine({
+              'service_check': {
+                'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
+                'type': 'SERVICE_CHECK_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    # Generar JSON con resultados
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_main.j2
+        dest: "{{ validacion_previa_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+        ansible_python_interpreter: /usr/bin/python3
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx

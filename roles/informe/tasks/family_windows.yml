@@ -1,0 +1,247 @@
+---
+# tasks file for roles/informe
+- name: DEBUG - Ver estructura del JSON
+  ansible.builtin.debug:
+    var: results
+    verbosity: 0
+
+- name: Preparar contenido del informe
+  ansible.builtin.set_fact:
+    informe_content: |
+      ===========================================================
+      INFORME DE PARCHADO - CRQ {{ crq_input | upper }}
+      ===========================================================
+      INFORMACIÓN GENERAL
+      ------------------
+      Servidor: {{ inventory_hostname }}
+      IP: {{ ip | default(ansible_host) }}
+      Lote: {{ lote | default('N/A') }}
+      Sistema Operativo: {{ ansible_distribution }}
+      Fecha de inicio de ejecucion: {{ results.pre_validation.timestamp }}
+      Fecha de fin de ejecucion:    {{ results.post_validation.timestamp }}
+
+      1. VALIDACION PREVIA
+      -------------------
+      Estado: {{ results.pre_validation.status }}
+      - Espacio Disponible: {{ results.pre_validation.filesystem_details.space_available_gb }}GB
+      - Espacio Total: {{ results.pre_validation.filesystem_details.space_total_gb }}GB
+      - Espacio Usado: {{ results.pre_validation.filesystem_details.space_used_gb }}GB
+      - Porcentaje Disponible: {{ results.pre_validation.filesystem_details.space_available_percent }}%
+      - Umbral Requerido: {{ results.pre_validation.filesystem_details.threshold_gb }}GB
+
+      Estado Inicial de Servicios:
+      - Total Servicios: {{ results.pre_validation.services_initial.total }}
+      - Activos (No-Auto): {{ results.pre_validation.services_initial.active }}
+
+      Estado de Reinicio Inicial:
+      - Reinicio Pendiente: {{ results.pre_validation.reboot_status.initial_pending | ternary('Si', 'No') }}
+      {% if results.pre_validation.reboot_status.reboot_executed %}
+      - Reinicio Ejecutado: {{ results.pre_validation.reboot_status.reboot_executed | ternary('Si', 'No') }}
+      - Resultado: {{ results.pre_validation.reboot_status.reboot_details.success | ternary('Exitoso', 'Fallido') }}
+      {% endif %}
+
+      2. SNAPSHOT PRE-PARCHADO
+      -------------------------
+      Estado: {{ results.snapshot.status }}
+      {% if results.snapshot.status == 'SKIPPED' %}
+      Razón: {{ results.snapshot.skipped_reason }}
+      {% else %}
+      {% if results.snapshot.virtualization_details is defined %}
+      Detalles de Virtualización:
+      - Tipo: {{ results.snapshot.virtualization_details.type }}
+      - Rol: {{ results.snapshot.virtualization_details.role }}
+      - vCenter: {{ results.snapshot.virtualization_details.vcenter }}
+      - Datacenter: {{ results.snapshot.virtualization_details.datacenter }}
+      - Nombre VM: {{ results.snapshot.virtualization_details.vm_name }}
+      - Tipo VM: {{ results.snapshot.virtualization_details.tipo_vmware }}
+      {% endif %}
+      {% if results.snapshot.snapshot_details is defined %}
+      Detalles del Snapshot:
+      - Nombre: {{ results.snapshot.snapshot_details.name }}
+      - Descripción: {{ results.snapshot.snapshot_details.description }}
+      - Fecha/Hora: {{ results.snapshot.snapshot_details.created_at }}
+      - Operación: {{ results.snapshot.snapshot_details.operation }}
+      {% else %}
+
+      Detalles del Snapshot: {{ results.snapshot.details.reason }}
+      {% endif %}
+
+      {% if results.snapshot.status == 'FAILED' %}
+      Error:
+      {% if results.snapshot.errors.credentials is defined %}
+      - Tipo: Credenciales
+        Detalle: {{ results.snapshot.errors.credentials.type }}
+        Mensaje: {{ results.snapshot.errors.credentials.details.error_detail }}
+      {% endif %}
+      {% if results.snapshot.errors.vm_not_found is defined %}
+      - Tipo: VM no encontrada
+        Detalle: {{ results.snapshot.errors.vm_not_found.type }}
+        Mensaje: {{ results.snapshot.errors.vm_not_found.details.error_detail }}
+      {% endif %}
+      {% if not results.snapshot.errors.credentials is defined and not results.snapshot.errors.vm_not_found is defined %}
+      - Mensaje: No hay detalles específicos del error
+      {% endif %}
+      {% endif %}
+      {% endif %}
+
+      3. VALIDACION DE REPOSITORIO WINDOWS UPDATE
+      -----------------------------------------
+      Estado: {{ results.repo_config.status }}
+      - WSUS Configurado: {{ results.repo_config.wsus_details.registry_exists | ternary('Si', 'No') }}
+      - Origen de Actualizaciones: {{ results.repo_config.wsus_details.update_source }}
+      - Fuente de Actualizaciones: {{ results.repo_config.wsus_details.server }}
+      {% if results.repo_config.wsus_details.error_details %}
+      - Observación: {{ results.repo_config.wsus_details.error_details }}
+      {% endif %}
+
+      4. PARCHADO
+      ----------
+      Estado: {{ results.patching.status }}
+      Estado de Ejecución: {{ results.patching.execution_state }}
+
+      Categorías de Actualización Seleccionadas:
+      {% for category in results.patching.process_details.categories_selected %}
+      - {{ category }}
+      {% endfor %}
+
+      Búsqueda de Actualizaciones:
+      - Encontradas: {{ results.patching.process_details.search.found_updates }}
+
+      Instalación:
+      - Instaladas: {{ results.patching.process_details.installation.installed_updates }}
+      - Fallidas: {{ results.patching.process_details.installation.failed_updates }}
+
+      Detalle de Actualizaciones Instaladas:
+      {% if results.patching.updates.installed.count > 0 %}
+        {% if results.patching.updates.installed.details is mapping %}
+          {% for id, update in results.patching.updates.installed.details.items() %}
+            {{ update.title }}
+            KB: {{ update.kb | join(', ') }}
+            Categorías: {{ update.categories | join(', ') }}
+          {% endfor %}
+        {% else %}
+          {% for update in results.patching.updates.installed.details %}
+            {{ update.title }}
+            KB: {{ update.kb | join(', ') }}
+            Categorías: {{ update.categories | join(', ') }}
+          {% endfor %}
+        {% endif %}
+      {% else %}
+      No se encontraron actualizaciones para instalar
+      {% endif %}
+
+      Actualizaciones Filtradas:
+      {% if results.patching.updates.filtered.count > 0 %}
+        {% if results.patching.updates.filtered.details is mapping %}
+          {% for id, update in results.patching.updates.filtered.details.items() %}
+          - {{ update.title }}
+            KB: {{ update.kb | join(', ') }}
+            Razón: {{ update.filtered_reason }}
+          {% endfor %}
+        {% else %}
+          {% for update in results.patching.updates.filtered.details %}
+          - {{ update.title }}
+            KB: {{ update.kb | join(', ') }}
+            Razón: {{ update.filtered_reason }}
+          {% endfor %}
+        {% endif %}
+      {% else %}
+      No se encontraron actualizaciones filtradas
+      {% endif %}
+
+      Estado de Reinicio Durante Parchado:
+      - Reinicio Ejecutado: {{ results.patching.process_details.reboot.details.performed | ternary('Si', 'No') }}
+      {% if results.patching.process_details.reboot.details.performed %}
+      - Resultado: {{ (results is success and results.patching.process_details.reboot.details.performed) | ternary('Exitoso', 'Fallido') }}
+      - Observación: Reinicio requerido y ejecutado durante la instalación de actualizaciones
+      {% endif %}
+
+      5. VALIDACION POST-PARCHADO
+      -------------------------
+      Estado: {{ results.post_validation.status }}
+      Estado de Ejecución: {{ results.post_validation.execution_state }}
+
+      - Estado de Servicios Activos:
+        * Servicios Activos Iniciales: {{ results.pre_validation.services_initial.active | default(0) }}
+          - Servicios Iniciales: {{ results.pre_validation.services_initial.active_list }}
+        * Servicios Activos Finales: {{ results.post_validation.services.comparison.final_count | default(0) }}
+          - Servicios Finales: {{ results.post_validation.services.comparison.final_list }}
+
+      Cambios en Servicios:
+      {% if results.post_validation.services.comparison.stopped_services | length > 0 %}
+      Servicios Detenidos ({{ results.post_validation.services.comparison.stopped_services | length }}):
+      {% for service in results.post_validation.services.comparison.stopped_services %}
+      - {{ service }}
+      {% endfor %}
+      {% endif %}
+
+      {% if results.post_validation.services.comparison.new_active_services | length > 0 %}
+      Nuevos Servicios Activos ({{ results.post_validation.services.comparison.new_active_services | length }}):
+      {% for service in results.post_validation.services.comparison.new_active_services %}
+      - {{ service }}
+      {% endfor %}
+      {% endif %}
+
+      Recuperación de Servicios:
+      - Intentados: {{ results.post_validation.services.recovery.attempted }}
+      - Exitosos: {{ results.post_validation.services.recovery.successful }}
+      - Fallidos: {{ results.post_validation.services.recovery.failed }}
+
+      {% if results.post_validation.services.recovery.service_issues.permission_denied | length > 0 %}
+      Servicios con Error de Permisos:
+      {% for service in results.post_validation.services.recovery.service_issues.permission_denied %}
+      - {{ service }}
+      {% endfor %}
+      {% endif %}
+      {% if results.post_validation.services.recovery.service_issues.other_errors | length > 0 %}
+      Servicios con Error:
+      {% for service in results.post_validation.services.recovery.service_issues.other_errors %}
+      - {{ service }}
+      {% endfor %}
+      {% endif %}
+
+      Estado de Reinicio Final:
+      - Reinicio Requerido: {{ results.post_validation.final_reboot.required | ternary('Si', 'No') }}
+      {% if results.post_validation.final_reboot.executed %}
+      - Reinicio Ejecutado: {{ results.post_validation.final_reboot.executed | ternary('Si', 'No') }}
+      - Resultado: {{ results.post_validation.final_reboot.success | ternary('Exitoso', 'Fallido') }}
+      {% endif %}
+
+      6. RESUMEN FINAL
+      --------------
+      Estado General: {{ results.post_validation.status }}
+      Observación: {{ results.post_validation.execution_state }}
+
+      Punto de Fallo: {% if not results.pre_validation.can_continue %}
+                       Validacion Previa
+                     {% elif not results.snapshot.can_continue %}
+                       Validacion y/o toma de Snapshot
+                     {% elif not results.repo_config.can_continue %}
+                       Configuracion de Windows Update
+                     {% elif not results.patching.can_continue %}
+                       Proceso de Parchado
+                     {% elif not results.post_validation.can_continue %}
+                       Validacion Post-Parchado
+                     {% else %}
+                       Ninguno
+                     {% endif %}
+
+      ===========================================================
+
+- name: Generar informe
+  ansible.builtin.copy:
+    content: "{{ informe_content }}"
+    dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/informe_{{ crq_input }}_{{ inventory_hostname }}.txt"
+    mode: "0755"
+    owner: "{{ owner }}"
+    group: "{{ group }}"
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+  #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+- name: Mostrar informe en consola
+  ansible.builtin.debug:
+    msg: "{{ informe_content.split('\n') }}"

@@ -1,0 +1,206 @@
+---
+# tasks file for roles/informe
+- name: Preparar contenido del informe
+  ansible.builtin.set_fact:
+    informe_content: |
+      ================================================================
+      INFORME DE PARCHADO - CRQ {{ crq_input | upper }}
+      ================================================================
+      INFORMACIÓN GENERAL
+      ------------------
+      Servidor: {{ inventory_hostname }}
+      IP: {{ ip | default(ansible_host) }}
+      Lote: {{ lote | default('N/A') }}
+      Sistema Operativo: {{ ansible_distribution }} {{ ansible_distribution_major_version }} SP{{ ansible_distribution_release }}
+      Fecha de inicio de ejecucion: {{ results.pre_validation.timestamp }}
+      Fecha de fin de ejecucion:    {{ results.post_validation.timestamp }}
+
+      1. VALIDACIÓN PREVIA
+      -------------------
+      Estado: {{ results.pre_validation.status }}
+      {% if results.pre_validation.status == 'FAILED' %}
+      Detalles del Fallo:
+      {% for fs in results.pre_validation.failed_filesystems %}
+      - Filesystem: {{ fs.mount }}
+        * Espacio Requerido: {{ fs.required_mb }} MB
+        * Espacio Disponible: {{ fs.available_mb }} MB
+        * Faltante: {{ fs.required_mb - fs.available_mb }} MB
+      {% endfor %}
+      {% else %}
+      Filesystems Analizados:
+      {% for mount, data in results.pre_validation.filesystem_details.filesystem_status.items() %}
+      - {{ mount }}:
+        * Espacio Requerido: {{ data.requerido }} MB
+        * Espacio Disponible: {{ data.disponible }} MB
+        * Estado: {{ 'OK' if data.cumple else 'FAILED' }}
+      {% endfor %}
+      {% endif %}
+
+      2. SNAPSHOT PRE-PARCHADO
+      -------------------------
+      Estado: {{ results.snapshot.status }}
+      {% if results.snapshot.status == 'SKIPPED' %}
+      Razón: {{ results.snapshot.skipped_reason }}
+      {% else %}
+      {% if results.snapshot.virtualization_details is defined %}
+      Detalles de Virtualización:
+      - Tipo: {{ results.snapshot.virtualization_details.type }}
+      - Rol: {{ results.snapshot.virtualization_details.role }}
+      - vCenter: {{ results.snapshot.virtualization_details.vcenter }}
+      - Datacenter: {{ results.snapshot.virtualization_details.datacenter }}
+      - Nombre VM: {{ results.snapshot.virtualization_details.vm_name }}
+      - Tipo VM: {{ results.snapshot.virtualization_details.tipo_vmware }}
+      {% endif %}
+      {% if results.snapshot.snapshot_details is defined %}
+      Detalles del Snapshot:
+      - Nombre: {{ results.snapshot.snapshot_details.name }}
+      - Descripción: {{ results.snapshot.snapshot_details.description }}
+      - Fecha/Hora: {{ results.snapshot.snapshot_details.created_at }}
+      - Operación: {{ results.snapshot.snapshot_details.operation }}
+      {% else %}
+
+      Detalles del Snapshot: {{ results.snapshot.details.reason }}
+      {% endif %}
+
+      {% if results.snapshot.status == 'FAILED' %}
+      Error:
+      - Mensaje: {{ results.snapshot.result.msg | default('No disponible') }}
+      {% endif %}
+      {% endif %}
+
+      3. CONFIGURACIÓN DE REPOSITORIOS FOREMAN
+      ------------------------------
+      Estado: {{ results.repo_config.status }}
+      {% if results.repo_config.status == 'SKIPPED' %}
+      Razón: {{ results.repo_config.skipped_reason }}
+      {% else %}
+      {% if results.repo_config.repositories %}
+      {% for repo in results.repo_config.repositories %}
+      Repositorios:
+      - {{ repo.name }}:
+        * URL: {{ repo.url }}
+        * Estado: {{ repo.status }}
+        * Prioridad: {{ repo.priority }}
+      {% endfor %}
+      {% endif %}
+      {% endif %}
+
+      4. PROCESO DE PARCHADO
+      --------------------
+      Estado: {{ results.patching.status }}
+      {% if results.patching.status == 'SKIPPED' %}
+      Razón: {{ results.patching.skipped_reason }}
+      {% else %}
+
+      Categorías de Actualización Seleccionadas:
+      {% for category in results.patching.update_details.categories_selected %}
+      - {{ category }}
+      {% endfor %}
+
+      {% if results.patching.update_details is defined %}
+      Resumen de Cambios:
+      - Estado de actualización: {{ results.patching.update_details.update_status }}
+      - Total paquetes actualizados: {{ results.patching.package_changes.actualizados.total }}
+      {% endif %}
+
+      {% if results.patching.package_changes is defined %}
+      Detalles de Paquetes:
+      - Total antes: {{ results.patching.package_changes.total_antes }}
+      - Total después: {{ results.patching.package_changes.total_despues }}
+
+      {% if results.patching.package_changes.nuevos is defined and results.patching.package_changes.nuevos != "Sin paquetes nuevos" %}
+      Paquetes Nuevos:
+      {% for pkg in results.patching.package_changes.nuevos %}
+      - {{ pkg }}
+      {% endfor %}
+      {% endif %}
+
+      {% if results.patching.package_changes.eliminados is defined and results.patching.package_changes.eliminados != "Sin paquetes eliminados" %}
+      Paquetes Eliminados:
+      {% for pkg in results.patching.package_changes.eliminados %}
+      - {{ pkg }}
+      {% endfor %}
+      {% endif %}
+
+      {% if results.patching.package_changes.actualizados is defined %}
+      Paquetes Actualizados:
+      {% for pkg in results.patching.package_changes.actualizados.detalles %}
+      - {{ pkg }}
+      {% endfor %}
+      {% endif %}
+      {% endif %}
+      {% endif %}
+
+      5. VALIDACIÓN POST-PARCHADO
+      -------------------------
+      Estado: {{ results.post_validation.status }}
+      {% if results.post_validation.status == 'SKIPPED' %}
+      Razon: {{ results.post_validation.skipped_reason }}
+      {% else %}
+      - Total de Servicios: {{ results.post_validation.services.total_services | default(0) }}
+
+      - Estado de Servicios Activos:
+        * Servicios Activos Iniciales: {{ results.post_validation.services.comparison.active_services_initial | default(0) }}
+          - Servicios Iniciales: {{ results.pre_validation.services_initial.active_list }}
+        * Servicios Activos Finales: {{ results.post_validation.services.comparison.active_services_final | default(0) }}
+          - Servicios Finales: {{ results.post_validation.services.active_list }}
+
+      {% if results.post_validation.services.comparison.services_changed.affected_services is defined and
+            results.post_validation.services.comparison.services_changed.affected_services | length > 0 %}
+      - Servicios que Cambiaron de Estado ({{ results.post_validation.services.comparison.services_changed.total }} servicios):
+        {% for service in results.post_validation.services.comparison.services_changed.affected_services | sort %}
+        - {{ service }}
+        {% endfor %}
+
+      - Resultado de Intentos de Recuperacion:
+        {% for result in results.post_validation.services.comparison.services_changed.recovery_attempts.details %}
+        * Servicio: {{ result.service }}
+          Estado: {{ result.status }}
+          {% if result.status == 'failed' %}Error: {{ result.state }}{% endif %}
+        {% endfor %}
+      {% else %}
+      - No hubo cambios en el estado de los servicios
+      {% endif %}
+      {% endif %}
+
+      6. RESUMEN FINAL
+      --------------
+      Estado General: {{ 'COMPLETADO EXITOSO' if (results.pre_validation.can_continue and
+                                        results.snapshot.can_continue and
+                                        results.repo_config.can_continue and
+                                        results.patching.can_continue and
+                                        results.post_validation.can_continue)
+                                    else 'FALLIDO' }}
+
+      Punto de Fallo: {% if not results.pre_validation.can_continue %}
+                      Validación Previa
+                     {% elif not results.snapshot.can_continue %}
+                       Validacion y/o toma de Snapshot
+                    {% elif not results.repo_config.can_continue %}
+                      Configuración de Repositorio
+                    {% elif not results.patching.can_continue %}
+                      Proceso de Parchado
+                    {% elif not results.post_validation.can_continue %}
+                      Validación Post-Parchado
+                    {% else %}
+                      Ninguno
+                    {% endif %}
+
+      ================================================================
+
+- name: Generar informe
+  ansible.builtin.copy:
+    content: "{{ informe_content }}"
+    dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/informe_{{ crq_input }}_{{ inventory_hostname }}.txt"
+    owner: "{{ owner }}"
+    group: "{{ group }}"
+    mode: "0755"
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+
+- name: Mostrar informe en consola
+  ansible.builtin.debug:
+    msg: "{{ informe_content.split('\n') }}"

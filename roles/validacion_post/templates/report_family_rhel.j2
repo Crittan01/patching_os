@@ -1,0 +1,64 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {{ previous_results.snapshot | to_json }},
+  "repo_config": {{ previous_results.repo_config | to_json }},
+  "patching": {{ previous_results.patching | to_json }},
+  "post_validation": {
+    "status": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and
+                                   previous_results.repo_config.can_continue and
+                                   previous_results.patching.can_continue) else
+                 'FAILED' if validation_error else
+                 'OK' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and
+                       previous_results.repo_config.can_continue and
+                       previous_results.patching.can_continue and
+                       not validation_error) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "services": {
+      "total_services": {{ ansible_facts.services | default({}) | length }},
+      "active": {{ active_services_final | length }},
+      "active_list": {{ active_services_final | to_json }},
+      "comparison": {
+        "active_services_initial": {{ services_info.total_antes | default(0) }},
+        "active_services_final": {{ services_info.total_despues | default(0) }},
+        "services_changed": {
+          "total": {{ services_info.servicios_detenidos | default([]) | length }},
+          "estado": {{ services_info.estado_servicios | default('SKIPPED') | to_json }},
+          {% if not previous_results.repo_config.can_continue %}
+          "message": "Validación de servicios omitida - Falló configuración de repositorios"
+          {% elif not previous_results.patching.can_continue %}
+          "message": "Validación de servicios omitida - Falló proceso de parchado"
+          {% elif services_info.servicios_detenidos | length > 0 %}
+          "affected_services": {{ services_info.servicios_detenidos | to_json }},
+          "recovery_attempts": {
+            "successful": {{ service_recovery.results | default([]) | selectattr('changed', 'defined') | selectattr('changed') | list | length }},
+            "failed": {{ service_recovery.results | default([]) | selectattr('failed', 'defined') | selectattr('failed') | list | length }},
+            "details": [
+              {% for result in service_recovery.results | default([]) %}
+              {
+                "service": "{{ result.item }}",
+                "status": "{{ 'success' if result.changed else 'failed' }}",
+                "state": "{{ result.state | default('unknown') }}"
+              }{{ '' if loop.last else ',' }}
+              {% endfor %}
+            ]
+          }
+          {% else %}
+          "message": "No se detectaron servicios abajo, que se encontraban arriba antes de parcheo"
+          {% endif %}
+        }
+      }
+    },
+    "reboot": {
+      "required": {{ (needs_reboot_result.rc | default(0) == 1) | lower }},
+      "needs_restarting_exit_code": {{ needs_reboot_result.rc | default(0) }},
+      "message": "{{ 'Se requiere reinicio' if needs_reboot_result.rc | default(0) == 1 else 'No se requiere reinicio' }}"
+    },
+    {% if validation_error %}
+    "errors": {{ validation_error | to_json }},
+    {% endif %}
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
+                        'Repository configuration failed' if not previous_results.repo_config.can_continue else
+                        'Patching failed' if not previous_results.patching.can_continue else '' }}"
+  }
+}

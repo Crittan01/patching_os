@@ -1,0 +1,76 @@
+---
+# tasks file skip for roles/snapshot
+- name: Validacion y Skip Creacion de Snapshot en la NO VM
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        skip_details: {}
+
+    - name: Proceso de Skip de Snapshot
+      when:
+        - previous_results.pre_validation.can_continue | bool
+      block:
+        - name: Registrar Skip de Snapshot
+          ansible.builtin.set_fact:
+            skip_details:
+              reason: "Servidor fisico o no-VMware - No requiere snapshot"
+              system_vendor: "{{ ansible_system_vendor }}"
+              virtualization_type: "{{ ansible_virtualization_type }}"
+              virtualization_role: "{{ ansible_virtualization_role }}"
+
+        - name: Registrar error de Skip de Snapshot
+          ansible.builtin.set_fact:
+            skip_details:
+              "{{ skip_details | combine({
+                'skip': {
+                  'error': ansible_failed_result.msg | default('Error registrando ski´p') | regex_replace('\n', ' '),
+                  'type': 'SKIP_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                  'details': {
+                    'reason': 'Servidor fisico o no-VMware - No requiere snapshot',
+                    'tipo_vmware': ansible_virtualization_type,
+                    'role_vmware': ansible_virtualization_role,
+                    'vcenter_vmware': vcenter_vmware,
+                    'expected_type': 'vcenter' if vcenter_vmware is match('.*vcbogdis.*') else 'standalone'}}}) }}"
+      rescue:
+        - name: Crear JSON de resultados
+          ansible.builtin.template:
+            src: report_skip.j2
+            dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+          #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_skip.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_skip.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

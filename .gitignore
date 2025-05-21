@@ -1,0 +1,9 @@
+# Ignorar archivos
+inventories/
+logs/
+venv/
+vars/temp.yml
+__pycache__
+ansible-navigator.log*
+*.json
+Ansible.code-workspace

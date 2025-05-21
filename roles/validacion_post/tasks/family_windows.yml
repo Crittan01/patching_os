@@ -1,0 +1,125 @@
+---
+# tasks file for roles/validacion_post
+- name: Validar estado previo y ejecutar validacion post
+  block:
+    # Inicialización de variables
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        active_services_final: []
+        service_analysis: { "stopped_services": [], "new_active_services": [] }
+        service_recovery_results:
+          { "attempted": 0, "successful": 0, "failed": 0, "details": [] }
+
+    - name: BLOQUE validacion post
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+        - previous_results.repo_config.can_continue
+        - previous_results.patching.can_continue
+      block:
+        # Validación de reinicio
+        - name: Pausa para validacion de Reinicio de Windows
+          ansible.builtin.pause:
+            minutes: 1
+          when: previous_results.patching.updates.installed.count > 0
+
+        - name: Verificar reinicio pendiente
+          ansible.builtin.debug:
+            var: ansible_reboot_pending
+
+        - name: Ejecutar reinicio si está pendiente
+          block:
+            - name: Realizar reinicio
+              ansible.windows.win_reboot:
+                pre_reboot_delay: 60
+                post_reboot_delay: 120
+                reboot_timeout: 1200
+                msg: "Reinicio requerido post-parchado"
+              when: ansible_reboot_pending
+              register: reboot_check
+
+            - name: Debug - Realizar reinicio (reinicio pendiente)
+              ansible.builtin.debug:
+                var: reboot_check
+
+          rescue:
+            - name: Registrar error de reinicio
+              ansible.builtin.set_fact:
+                reboot_error: "{{ ansible_failed_result }}"
+
+        # Validación de servicios
+        - name: Procesar servicios
+          block:
+            - name: Pausa para - Obtener listado de Servicios Windows actual
+              when: reboot_check.changed # noqa: no-handler
+              ansible.builtin.pause:
+                minutes: 1
+
+            - name: Obtener listado de Servicios Windows actual
+              ansible.windows.win_service_info:
+              register: services_info
+
+            - name: Crear lista de servicios activos finales
+              ansible.builtin.set_fact:
+                active_services_final: "{{ services_info.services |
+                  selectattr('start_mode', 'ne', 'auto') |
+                  selectattr('state', 'equalto', 'started') |
+                  map(attribute='name') |
+                  list }}"
+
+            - name: Analizar cambios en servicios
+              ansible.builtin.set_fact:
+                service_analysis:
+                  stopped_services:
+                    "{{ previous_results.pre_validation.services_initial.active_list | difference(active_services_final) }}"
+                  new_active_services:
+                    "{{ active_services_final | difference(previous_results.pre_validation.services_initial.active_list) }}"
+                  service_details:
+                    "{{ dict(services_info.services |
+                    selectattr('name', 'in', service_analysis.stopped_services) |
+                    map('items') | sum(start=[])) }}"
+
+            # Intento de recuperación de servicios
+            - name: Intentar recuperar servicios
+              when:
+                - previous_results.patching.updates.installed.count > 0
+                - service_analysis.stopped_services | length > 0
+              block:
+                - name: Reactivar servicios detenidos
+                  ansible.windows.win_service:
+                    name: "{{ item }}"
+                    state: started
+                    start_mode: manual
+                  register: service_recovery
+                  loop: "{{ service_analysis.stopped_services }}"
+                  retries: 3
+                  delay: 10
+                  failed_when: false
+              always:
+                - name: Registrar resultados de recuperación
+                  ansible.builtin.set_fact:
+                    service_recovery_results:
+                      attempted: "{{ (service_analysis.stopped_services | length) if (previous_results.patching.updates.installed.count > 0) else 0 }}"
+                      successful: "{{ (service_recovery.results | default([]) |
+                        rejectattr('msg', 'defined') |
+                        selectattr('state', 'equalto', 'running') |
+                        list | length) if (previous_results.patching.updates.installed.count > 0) else 0 }}"
+                      failed: "{{ (service_recovery.results | default([]) |
+                        selectattr('msg', 'defined') |
+                        list | length) if (previous_results.patching.updates.installed.count > 0) else 0 }}"
+                      details: "{{ service_recovery.results | default([]) }}"
+
+    # Generación de JSON final
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_windows.j2
+        dest: "{{ validacion_post_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

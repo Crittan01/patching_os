@@ -1,0 +1,71 @@
+- name: Eliminar snapshot de vCenter
+  block:
+    - name: Capturar Fecha del CSV
+      ansible.builtin.set_fact:
+        fecha_crq: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}-{{ ansible_date_time.minute }}-{{ ansible_date_time.second }}"
+
+    - name: Ejecutar eliminacion snapshot vCenter
+      community.vmware.vmware_guest_snapshot:
+        hostname: "{{ item.snapshot.virtualization_details.vcenter }}"
+        username: "{{ vcenter_credentials[item.snapshot.virtualization_details.vcenter]['username'] }}"
+        password: "{{ vcenter_credentials[item.snapshot.virtualization_details.vcenter]['password'] }}"
+        validate_certs: false
+        datacenter: "{{ item.snapshot.virtualization_details.datacenter }}"
+        name: "{{ item.snapshot.virtualization_details.vm_name }}"
+        folder: "vm"
+        snapshot_name: "{{ item.snapshot.snapshot_details.name }}"
+        state: absent
+      register: vcenter_result
+      delegate_to: localhost
+
+    - name: Debug - Ejecutar eliminacion snapshot vCenter
+      ansible.builtin.debug:
+        var: vcenter_result
+
+    - name: Guardar información eliminada para el handler
+      ansible.builtin.set_fact:
+        deleted_snapshot_info: "{{ item }}"
+
+    - name: Registrar éxito - Ejecutar eliminacion snapshot vCenter
+      ansible.builtin.set_fact:
+        deletion_results: >-
+          {{ deletion_results + [{
+            'vm': item.snapshot.virtualization_details.vm_name,
+            'tipo': 'vcenter',
+            'status': 'OK',
+            'details': vcenter_result.stdout | default('')
+          }] }}
+  rescue:
+    - name: Registrar error - Ejecutar eliminacion snapshot vCenter
+      ansible.builtin.set_fact:
+        deletion_results: >-
+          {{ deletion_results + [{
+            'vm': item.snapshot.virtualization_details.vm_name | default('unknown'),
+            'tipo': 'standalone',
+            'status': 'FAILED',
+            'error': ansible_failed_result.msg | default('Error en proceso de eliminar de snapshot vCenter') | regex_replace('\n', ' ')
+          }] }}
+          'tipo': 'vcenter',
+          'status': 'FAILED',
+          'error': ansible_failed_result.msg | default('Error en proceso de eliminar de snapshot vCenter') | regex_replace('\n', ' ') }] }}"
+
+- name: Escribir Columnas del CSV - eliminacion snapshot vCenter
+  ansible.builtin.lineinfile:
+    insertafter: EOF
+    dest: "{{ crq_dir }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: >-
+      {{ crq_input | upper }},
+      {{- fecha_crq }},
+      {{- item.snapshot.virtualization_details.vcenter }},
+      {{- vcenter_credentials[item.snapshot.virtualization_details.vcenter]['username'] }},
+      {{- item.snapshot.virtualization_details.datacenter }},
+      {{- item.snapshot.virtualization_details.vm_name }},
+      {{- item.snapshot.snapshot_details.name }},
+      {{- "N/A" }},
+      {{- "N/A" }}
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+  when: vcenter_result.changed # noqa: no-handler

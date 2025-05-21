@@ -1,0 +1,41 @@
+---
+# handlers file for roles/snapshot
+- name: Escribir Columnas del CSV - eliminacion snapshot vCenter
+  ansible.builtin.lineinfile:
+    insertafter: EOF
+    dest: "{{ crq_dir }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: >-
+      {{ crq_input | upper }},
+      {{- fecha_crq }},
+      {{- item.snapshot.virtualization_details.vcenter }},
+      {{- vcenter_credentials[item.snapshot.virtualization_details.vcenter]['username'] }},
+      {{- item.snapshot.virtualization_details.datacenter }},
+      {{- item.snapshot.virtualization_details.vm_name }},
+      {{- item.snapshot.snapshot_details.name }},
+      {{- "N/A" }},
+      {{- "N/A" }}
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+
+- name: Escribir Columnas del CSV - eliminacion snapshot Standalone
+  ansible.builtin.lineinfile:
+    insertafter: EOF
+    dest: "{{ crq_dir }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: >-
+      {{ crq_input | upper }},
+      {{- fecha_crq }},
+      {{- item.snapshot.virtualization_details.vcenter }},
+      {{- esxi_credentials[item.snapshot.virtualization_details.vcenter]['username'] }},
+      {{- item.snapshot.virtualization_details.datacenter }},
+      {{- item.snapshot.virtualization_details.vm_name }},
+      {{- item.snapshot.snapshot_details.name }},
+      {{- item.snapshot.snapshot_details.vmid }},
+      {{- item.snapshot.snapshot_details.snapshot_id }}
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"

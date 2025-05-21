@@ -1,0 +1,40 @@
+{
+"pre_validation": {
+    "status": "{{ 'OK' if todos_cumplen else 'FAILED' }}",
+    "can_continue": {{ todos_cumplen | bool | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "reboot_status": {
+    "initial_pending": {{ ansible_reboot_pending | default(false) | bool | lower }},
+    "reboot_executed": {{ (reboot_result is defined and reboot_result.changed) | default(false) | bool | lower }},
+    "reboot_details": {
+        "pre_reboot_delay": 120,
+        "post_reboot_delay": 120,
+        "timeout": 600,
+        "success": {{ (reboot_result is defined and not reboot_result.failed | default(true)) | bool | lower }},
+        "error": {{ reboot_result.msg | default('') | to_json }}
+    }
+    },
+    "filesystem_details": {
+    "drive": "{{ unidad }}:",
+    "space_total_gb": {{ espacio_total_gb | float }},
+    "space_available_gb": {{ espacio_libre_gb | float }},
+    "space_used_gb": {{ (espacio_total_gb | float - espacio_libre_gb | float) | round(2) }},
+    "space_available_percent": {{ ((espacio_libre_gb | float / espacio_total_gb | float) * 100) | round(2) }},
+    "threshold_gb": {{ umbral }},
+    "all_requirements_met": {{ todos_cumplen | bool | lower }}
+    },
+    "services_initial": {
+    "total": {{ services_info.services | length }},
+    "active": {{ active_services_initial | length }},
+    "active_list": {{ active_services_initial | to_json }}
+    },
+    "failed_validations": [
+    {% if not todos_cumplen %}
+    {
+        "check": "disk_space",
+        "message": "Espacio insuficiente en unidad C:. Disponible: {{ espacio_libre_gb | float }}GB, Requerido: {{ umbral }}GB"
+    }
+    {% endif %}
+    ]
+}
+}

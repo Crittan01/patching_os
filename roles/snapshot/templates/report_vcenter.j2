@@ -1,0 +1,30 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {
+    "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
+                  'OK' if (snapshot_result.changed or ('already exists' in snapshot_result.msg | default(''))) else 'FAILED' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+                      (snapshot_result.changed or 'already exists' in snapshot_result.msg | default(''))) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "virtualization_details": {
+      "type": "{{ ansible_virtualization_type }}",
+      "role": "{{ ansible_virtualization_role }}",
+      "vendor": "{{ ansible_system_vendor }}",
+      "vcenter": "{{ vcenter_vmware }}",
+      "datacenter": "{{ datacenter_vmware }}",
+      "vm_name": "{{ vm_name }}",
+      "tipo_vmware": "{{ tipo_vmware }}"
+    },
+    "snapshot_details": {
+      "name": "{{ snapshot_name if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') }}",
+      "description": "{{ snapshot_description if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') }}",
+      "created_at": "{{ ansible_date_time.iso8601 if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') }}",
+      "operation": "{{ 'Created' if (snapshot_result.changed) else 'Already Exists' if 'already exists' in snapshot_result.msg | default('') else '' }}",
+      "memory_dump": "{{ false if (snapshot_result.changed or 'already exists' in snapshot_result.msg | default('')) }}",
+      "quiesce": "{{ false if (snapshot_result.changed or 'already exists' in snapshot_result.msg | default('')) }}"
+    },
+    "result": {{ snapshot_result | to_json }},
+    "errors": {{ snapshot_error | to_json }},
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue | default('Desconocido') else '' }}"
+  }
+}

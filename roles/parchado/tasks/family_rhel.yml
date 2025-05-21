@@ -1,0 +1,409 @@
+---
+# tasks file for roles/parchado
+- name: Validar estado previo y ejecutar parchado
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        paquetes_objetivo_dnf:
+          [
+            "kbd",
+            "shadow-utils",
+            "util-linux",
+            "which",
+            "bash",
+            "coreutils",
+            "iproute",
+            "rpm",
+            "audit",
+            "audit-libs",
+            "bind-utils",
+            "bzip2",
+            "curl",
+            "dnf",
+            "gzip",
+            "sysstat",
+            "logrotate",
+            "lsof",
+            "mtr",
+            "nano",
+            "net-tools",
+            "nmap",
+            "rsyslog",
+            "screen",
+            "sudo",
+            "sysstat",
+            "tar",
+            "traceroute",
+            "vim",
+            "wget",
+            "xz",
+          ]
+        paquetes_objetivo_yum:
+          [
+            "kbd",
+            "shadow-utils",
+            "util-linux",
+            "which",
+            "bash",
+            "coreutils",
+            "iproute",
+            "rpm",
+            "audit",
+            "audit-libs",
+            "bind-utils",
+            "bzip2",
+            "curl",
+            "gzip",
+            "sysstat",
+            "logrotate",
+            "lsof",
+            "mtr",
+            "nano",
+            "net-tools",
+            "nmap",
+            "rsyslog",
+            "screen",
+            "sudo",
+            "sysstat",
+            "tar",
+            "traceroute",
+            "vim",
+            "wget",
+            "xz",
+            "yum",
+          ]
+        paquetes_antes: { "stdout_lines": [] }
+        paquetes_despues: { "stdout_lines": [] }
+        paquetes_info:
+          antes: []
+          despues: []
+          nuevos: []
+          eliminados: []
+          actualizados: []
+        patch_error: {}
+        yum_update: { "skipped": true }
+        dnf_update: { "skipped": true }
+
+    - name: BLOQUE parchado
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+        - previous_results.repo_config.can_continue
+      block:
+        # Pre-parchado
+        - name: Validación de estado pre-parchado
+          block:
+            - name: Listar repositorios creados por Ansible
+              ansible.builtin.find:
+                paths: /etc/yum.repos.d
+                patterns: "local*.repo"
+              register: existing_repos
+
+            - name: DEBUG - Listar repositorios creados por Ansible
+              ansible.builtin.debug:
+                var: existing_repos
+
+            - name: Leer contenido de repositorios existentes
+              ansible.builtin.slurp:
+                src: "{{ item.path }}"
+              register: repo_contents
+              loop: "{{ existing_repos.files }}"
+
+            - name: DEBUG - Leer contenido de repositorios existentes
+              ansible.builtin.debug:
+                msg: "{{ repo_contents }}"
+
+            - name: Acceder al valor de create_repos
+              ansible.builtin.debug:
+                msg: "El valor de create_repos es: {{ previous_results['repo_config']['create_repos'] }}"
+
+            - name: Listar Paquetes Antes del Parchado
+              ansible.builtin.shell: |
+                set -o pipefail
+                rpm -qa --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort
+              register: paquetes_antes
+              changed_when: false
+
+            - name: Guardar Listado de Paquetes Antes del Parchado
+              ansible.builtin.copy:
+                content: "{{ paquetes_antes.stdout }}"
+                dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt"
+                owner: "{{ owner }}"
+                group: "{{ group }}"
+                mode: "0755"
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+          rescue:
+            - name: Registrar error de pre-parchado
+              ansible.builtin.set_fact:
+                patch_error: "{{ patch_error | combine(
+                  {'pre_patch':
+                  {'error': ansible_failed_result.msg | default('Error listando paquetes iniciales') | regex_replace('\n', ' '),
+                  'type': 'PRE_PATCH_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        # Proceso de parchado
+        - name: Ejecutar Parchado si las validaciones previas son exitosas
+          block:
+            - name: Instalar dnf-utils si el gestor es DNF
+              ansible.builtin.dnf:
+                name:
+                  - dnf-utils
+                disablerepo: "*"
+                enablerepo: "{{ previous_results['repo_config']['create_repos'] }}"
+              when: ansible_pkg_mgr == 'dnf'
+
+            - name: Instalar yum-utils si el gestor es YUM
+              ansible.builtin.yum:
+                name:
+                  - yum-utils
+                disablerepo: "*"
+                enablerepo: "{{ previous_results['repo_config']['create_repos'] }}"
+              when: ansible_pkg_mgr == 'yum'
+
+            - name: Actualizar Paquetes si el gestor es YUM
+              when: ansible_pkg_mgr == 'yum'
+              ansible.builtin.yum:
+                name: "{{ paquetes_objetivo_yum }}"
+                state: latest
+                update_only: true
+                disable_gpg_check: true
+                disablerepo: "*"
+                enablerepo: "{{ previous_results['repo_config']['create_repos'] }}"
+              register: yum_update
+
+            - name: DEBUG - Actualizar Paquetes si el gestor es YUM
+              ansible.builtin.debug:
+                var: yum_update
+
+            - name: Actualizar Paquetes si el gestor es DNF
+              when: ansible_pkg_mgr == 'dnf'
+              ansible.builtin.dnf:
+                name: "{{ paquetes_objetivo_dnf }}"
+                state: latest
+                update_only: true
+                disable_gpg_check: true
+                disablerepo: "*"
+                enablerepo: "{{ previous_results['repo_config']['create_repos'] }}"
+              register: dnf_update
+
+            - name: DEBUG - Actualizar Paquetes si el gestor es DNF
+              ansible.builtin.debug:
+                var: dnf_update
+              when: ansible_pkg_mgr == 'dnf'
+
+            - name: Intentar Obtener el ID de la transaccion
+              ansible.builtin.shell: |
+                set -o pipefail
+                yum history list | awk 'NR==4 {print $1}'
+              changed_when: false
+              register: transaction_info
+              when: yum_update.changed or dnf_update.changed
+
+            - name: Debug - Intentar Obtener el ID de la transaccion
+              ansible.builtin.debug:
+                var: transaction_info.stdout
+              when: transaction_info is defined
+
+            - name: Registrar resultados de la actualización YUM
+              ansible.builtin.set_fact:
+                update_result:
+                  packages_updated: "{{ yum_update.packages | default([]) | length }}"
+                  update_status:
+                    "{{ 'NO_UPDATES_AVAILABLE' if not yum_update.changed else
+                    'UPDATED' if yum_update.rc == 0 else 'FAILED' }}"
+              when: ansible_pkg_mgr == 'yum'
+
+            - name: Registrar resultados de la actualización DNF
+              ansible.builtin.set_fact:
+                update_result:
+                  packages_updated: "{{ dnf_update.packages | default([]) | length }}"
+                  update_status:
+                    "{{ 'NO_UPDATES_AVAILABLE' if not dnf_update.changed else
+                    'UPDATED' if dnf_update.rc == 0 else 'FAILED' }}"
+              when: ansible_pkg_mgr == 'dnf'
+          rescue:
+            - name: Registrar error de parchado
+              ansible.builtin.set_fact:
+                patch_error: >-
+                  {{
+                    patch_error | combine({
+                      'patching': {
+                        'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+                          | default('Error en proceso de parchado') | regex_replace('\n', ' '),
+                        'type': 'PATCH_ERROR',
+                        'details': {
+                          'task_name': ansible_failed_result.task_name | default('unknown'),
+                          'module_name': ansible_failed_result.module_name | default('unknown'),
+                          'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+                          'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' ')
+                        }
+                      }
+                    })
+                  }}
+
+        # Post-parchado y análisis
+        - name: Validación post-parchado
+          block:
+            - name: Listar Paquetes Después del Parchado
+              ansible.builtin.shell: |
+                set -o pipefail
+                rpm -qa --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort
+              register: paquetes_despues
+              changed_when: false
+
+            - name: Guardar Listado de Paquetes Después del Parchado
+              ansible.builtin.copy:
+                content: "{{ paquetes_despues.stdout }}"
+                dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
+                owner: "{{ owner }}"
+                group: "{{ group }}"
+                mode: "0755"
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+
+            - name: Comparar listas con diff
+              ansible.builtin.shell: >
+                sdiff --suppress-common-lines "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt" "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
+              register: diff_output
+              failed_when: diff_output.rc not in [0, 1] # `sdiff` retorna 0 si no hay diferencias, 1 si hay diferencias.
+              changed_when: false
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+
+            - name: Limpiar tabs de la salida de sdiff
+              # Reemplaza secuencias de tabs (\t) por un espacio
+              ansible.builtin.set_fact:
+                clean_diff: "{{ diff_output.stdout_lines | map('regex_replace', '\\t+', ' ') | list }}"
+
+            - name: DEBUG
+              ansible.builtin.debug:
+                var: clean_diff
+
+            - name: Analizar Cambios en Paquetes
+              block:
+                - name: Realizar análisis de cambios
+                  ansible.builtin.set_fact:
+                    paquetes_info:
+                      antes: "{{ paquetes_antes.stdout_lines }}"
+                      despues: "{{ paquetes_despues.stdout_lines }}"
+                      nuevos: "{{ paquetes_despues.stdout_lines | difference(paquetes_antes.stdout_lines) }}"
+                      eliminados: "{{ paquetes_antes.stdout_lines | difference(paquetes_despues.stdout_lines) }}"
+                      actualizados: "{{ clean_diff | default([]) }}"
+                      estado_actualizacion:
+                        "{{ 'NO_UPDATES_AVAILABLE' if not dnf_update.changed | default(false) else
+                        ('NO_CHANGES' if (paquetes_despues.stdout_lines | default([]) | difference(paquetes_antes.stdout_lines | default([])) | length == 0)
+                        else 'CHANGES_DETECTED') }}"
+                  when: ansible_pkg_mgr == 'dnf'
+
+                - name: Realizar análisis de cambios
+                  ansible.builtin.set_fact:
+                    paquetes_info:
+                      antes: "{{ paquetes_antes.stdout_lines }}"
+                      despues: "{{ paquetes_despues.stdout_lines }}"
+                      nuevos: "{{ paquetes_despues.stdout_lines | difference(paquetes_antes.stdout_lines) }}"
+                      eliminados: "{{ paquetes_antes.stdout_lines | difference(paquetes_despues.stdout_lines) }}"
+                      actualizados: "{{ clean_diff }}"
+                      estado_actualizacion:
+                        "{{ 'NO_UPDATES_AVAILABLE' if not yum_update.changed else
+                        'NO_CHANGES' if (paquetes_despues.stdout_lines | difference(paquetes_antes.stdout_lines) | length == 0)
+                        else 'CHANGES_DETECTED' }}"
+                  when: ansible_pkg_mgr == 'yum'
+              rescue:
+                - name: Registrar error de análisis
+                  ansible.builtin.set_fact:
+                    patch_error: "{{ patch_error | combine(
+                      {'analysis':
+                      {'error': ansible_failed_result.msg | default('Error en análisis de paquetes') | regex_replace('\n', ' '),
+                      'type': 'ANALYSIS_ERROR',
+                      'details':
+                      {'paquetes_antes': paquetes_antes.stdout_lines | length,
+                      'paquetes_despues': paquetes_despues.stdout_lines | length,
+                      'error_task': ansible_failed_task | default('unknown')}}}) }}"
+                    paquetes_info:
+                      antes: "{{ paquetes_antes.stdout_lines }}"
+                      despues: "{{ paquetes_despues.stdout_lines }}"
+                      nuevos: []
+                      eliminados: []
+                      actualizados: []
+                      estado_actualizacion: "ERROR_IN_ANALYSIS"
+          rescue:
+            - name: Registrar error de post-parchado
+              ansible.builtin.set_fact:
+                patch_error: "{{ patch_error | combine({
+                  'post_patch': {
+                  'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+                  | default('Error en validación post-parchado') | regex_replace('\n', ' '),
+                  'type': 'POST_PATCH_ERROR',
+                  'details': {
+                  'task_name': ansible_failed_result.task_name | default('unknown'),
+                  'module_name': ansible_failed_result.module_name | default('unknown'),
+                  'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+                  'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' ')
+                  }
+                  }}) }}"
+      rescue:
+        - name: Registrar error del BLOQUE parchado
+          ansible.builtin.set_fact:
+            patch_error: "{{ patch_error | combine({
+              'patch_block': {
+              'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+              | default('Error en bloque de parchado') | regex_replace('\n', ' '),
+              'type': 'PATCH_BLOCK_ERROR',
+              'details': {
+              'task_name': ansible_failed_result.task_name | default('unknown'),
+              'module_name': ansible_failed_result.module_name | default('unknown'),
+              'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+              'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' '),
+              'module_args': ansible_failed_result.module_args | default({}) | to_json
+              }
+              }}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Registrar error general del proceso de parchado
+      ansible.builtin.set_fact:
+        patch_error: "{{ patch_error | default({}) | combine({
+          'general_error': {
+          'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+          | default('Error General en el Proceso de Parchado') | regex_replace('\n', ' '),
+          'type': 'GENERAL_ERROR',
+          'module': ansible_failed_result.module_name | default('unknown'),
+          'host': inventory_hostname,
+          'task_args': ansible_failed_result.module_args | default({}) | to_json
+          }}) }}"
+
+    - name: Crear JSON de resultados - error general del proceso de parchado
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

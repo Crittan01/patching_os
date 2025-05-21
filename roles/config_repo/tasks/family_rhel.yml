@@ -1,0 +1,141 @@
+---
+- name: Validar repositorios existentes
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        repo_error: {}
+        repos_habilitados: []
+        repos_accesibles: []
+        repos_inaccesibles: []
+        repo_manager: "{{ 'dnf' if ansible_distribution_major_version | int >= 8 else 'yum' }}"
+
+    - name: BLOQUE validación de repositorios
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+      block:
+        # Detección de repositorios existentes
+        - name: Obtener repositorios habilitados
+          ansible.builtin.command: "{{ repo_manager }} repolist enabled -v"
+          register: repolist_result
+          changed_when: false
+          failed_when: false
+          ignore_errors: true
+
+        - name: Extraer información de repositorios
+          ansible.builtin.set_fact:
+            repos_habilitados_raw:
+              "{{ repolist_result.stdout_lines | select('match', '^Repo-id\\s*:\\s*') |
+              list | map('regex_replace', '^Repo-id\\s*:\\s*(.*)', '\\1') | list }}"
+          when: repolist_result is success and repolist_result.stdout is defined
+
+        # Limpiar IDs de repositorio (quitar arquitectura)
+        - name: Limpiar IDs de repositorio
+          ansible.builtin.set_fact:
+            repos_habilitados: "{{ repos_habilitados_raw | map('regex_replace', '([^/]+)(?:/.*)?$', '\\1') | list }}"
+          when: repos_habilitados_raw is defined
+
+        - name: Extraer URLs de repositorios
+          ansible.builtin.command: "{{ repo_manager }} repoinfo {{ item }}"
+          register: repo_info_results
+          loop: "{{ repos_habilitados }}"
+          changed_when: false
+          failed_when: false
+          ignore_errors: true
+          when: repos_habilitados | length > 0
+
+        # Verificar accesibilidad de repositorios
+        - name: Verificar accesibilidad de repositorios
+          block:
+            - name: Actualizar caché de repositorios
+              ansible.builtin.command: "{{ repo_manager }} makecache"
+              register: makecache_result
+              changed_when: false
+              failed_when: false
+              ignore_errors: true
+
+            - name: Probar acceso a cada repositorio
+              ansible.builtin.command: "{{ repo_manager }} repoinfo {{ item }}"
+              register: repo_test_results
+              loop: "{{ repos_habilitados }}"
+              changed_when: false
+              failed_when: false
+              ignore_errors: true
+              when: repos_habilitados | length > 0
+
+            - name: Analizar resultados de accesibilidad
+              ansible.builtin.set_fact:
+                repos_accesibles: "{{ repos_accesibles + [item.item] }}"
+              loop: "{{ repo_test_results.results }}"
+              when: repo_test_results is defined and item.rc == 0
+
+            - name: Identificar repositorios inaccesibles
+              ansible.builtin.set_fact:
+                repos_inaccesibles: "{{ repos_inaccesibles + [item.item] }}"
+              loop: "{{ repo_test_results.results }}"
+              when: repo_test_results is defined and item.rc != 0
+          rescue:
+            - name: Registrar error de verificación
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'verification': {
+                  'error': ansible_failed_result.msg | default('Error verificando repositorios') | regex_replace('\n', ' '),
+                  'type': 'VERIFICATION_ERROR',
+                  'task': ansible_failed_task.name | default('unknown')
+                  } }) }}"
+
+        # Generar estado general de repositorios
+        - name: Determinar estado general de repos
+          ansible.builtin.set_fact:
+            repo_status: "{{ 'OK' if repos_accesibles | length > 0 else 'FAILED' }}"
+            repo_can_continue: "{{ repos_accesibles | length > 0 }}"
+
+      rescue:
+        - name: Registrar error global
+          ansible.builtin.set_fact:
+            repo_error: "{{ repo_error | combine({
+              'global': {
+              'error': ansible_failed_result.msg | default('Error global en validación de repos') | regex_replace('\n', ' '),
+              'type': 'GLOBAL_ERROR',
+              'task': ansible_failed_task.name | default('unknown')
+              } }) }}"
+            repo_status: "FAILED"
+            repo_can_continue: false
+
+    # Crear JSON con resultado final
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+  rescue:
+    - name: Registrar error fatal
+      ansible.builtin.set_fact:
+        repo_error: "{{ repo_error | default({}) | combine({
+          'fatal': {
+          'error': ansible_failed_result.msg | default('Error fatal en validación de repos') | regex_replace('\n', ' '),
+          'type': 'FATAL_ERROR',
+          'task': ansible_failed_task.name | default('unknown')
+          } }) }}"
+        repo_status: "FAILED"
+        repo_can_continue: false
+
+    - name: Crear JSON de resultados (error fatal)
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"

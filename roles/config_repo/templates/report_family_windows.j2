@@ -1,0 +1,18 @@
+{
+    "pre_validation": {{ previous_results.pre_validation | to_json }},
+    "snapshot": {{ previous_results.snapshot | to_json }},
+    "repo_config": {
+      "status": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and previous_results.snapshot.can_continue) else
+      'OK (NO_WSUS)'if not wsus_config.exists | default(false) else 'OK (SI_WSUS)' }}",
+      "can_continue": {{ previous_results.pre_validation.can_continue and previous_results.snapshot.can_continue | lower }},
+      "timestamp": "{{ ansible_date_time.iso8601 }}",
+      "wsus_details": {
+        "registry_exists": {{ wsus_config.exists | default(false) | lower }},
+        "server": "{{ wsus_config.value | default('Windows Update') }}",
+        "update_source": "{{ 'WSUS' if wsus_config.exists | default(false) else 'Windows Update' }}",
+        "error_details": "{{ 'No existe configuracion de WSUS, se usará Windows Update' if not wsus_config.exists | default(false) else '' }}"
+      },
+      "errors": {{ repo_error | to_json }},
+      "skipped_reason": "{{ 'Pre-validacion fallo' if not previous_results.pre_validation.can_continue else '' }}"
+    }
+  }

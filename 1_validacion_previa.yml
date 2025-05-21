@@ -1,0 +1,100 @@
+---
+- name: Validaciones Previas
+  hosts: "{{ lote | default([]) }}"
+  gather_facts: false
+  serial: "{{ serial | default(1) }}"
+  vars_files:
+    - vars/global.yml
+
+  vars:
+    log_dir: "/var/log/ansible_patches"
+
+  pre_tasks:
+    - name: Crear directorio de logs
+      when:
+        - crq | lower == crq_input | lower
+      ansible.builtin.file:
+        path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
+        state: directory
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+        ansible_python_interpreter: /usr/bin/python3
+        # ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
+
+    - name: Recolectar FACTS
+      ansible.builtin.setup:
+      ignore_unreachable: true
+      register: fact_result
+      retries: 5
+      delay: 10
+      until: not fact_result.unreachable | default(false)
+
+    # Verificar si los facts se recopilaron correctamente
+    - name: Establecer el estado de facts
+      ansible.builtin.set_fact:
+        facts_gathered: true
+      when: ansible_os_family is defined
+
+    - name: Manejar caso de facts fallidos
+      when: facts_gathered is not defined
+      block:
+        - name: Registrar error de recolección de facts
+          ansible.builtin.set_fact:
+            fact_error:
+              {
+                "error": "No se pudo establecer conexion con el servidor",
+                "type": "CONNECT_FAILED",
+              }
+
+        - name: Crear JSON para host con facts fallidos
+          ansible.builtin.copy:
+            content: |
+              {
+                "pre_validation": {
+                  "status": "FAILED",
+                  "can_continue": false,
+                  "error": {{ fact_error | to_json }}
+                }
+              }
+            dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+
+  tasks:
+    - name: Validaciones Previas para SLES y REDHAT
+      when:
+        - facts_gathered is defined
+        - ansible_os_family in ['Suse', 'RedHat']
+        - ansible_architecture == 'x86_64'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      become: true
+      block:
+        - name: Validacion de Espacio y Reinicio de Maquinas Familia 'Suse' y 'RedHat'
+          ansible.builtin.include_role:
+            name: validacion_previa
+            tasks_from: main.yml
+
+    - name: Validaciones Previas para Windows
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == "Windows"
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Validacion de Espacio y Reinicio de Maquinas Windows
+          ansible.builtin.include_role:
+            name: validacion_previa
+            tasks_from: family_windows.yml

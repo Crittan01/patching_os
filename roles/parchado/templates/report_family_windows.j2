@@ -1,0 +1,74 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {{ previous_results.snapshot | to_json }},
+  "repo_config": {{ previous_results.repo_config | to_json }},
+  "patching": {
+    "status": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and 
+                                   previous_results.snapshot.can_continue and 
+                                   previous_results.repo_config.can_continue) else
+                  'FAILED' if (search_error.msg is defined or 
+                             download_error.msg is defined or 
+                             installation_error.msg is defined or
+                             fatal_error.msg is defined) else
+                  'OK' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and
+                       previous_results.snapshot.can_continue and
+                       previous_results.repo_config.can_continue and
+                       not (search_error.msg is defined or 
+                           download_error.msg is defined or 
+                           installation_error.msg is defined or
+                           fatal_error.msg is defined)) | lower }},
+    "execution_state": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and 
+                                            previous_results.snapshot.can_continue and 
+                                            previous_results.repo_config.can_continue) else
+                           'FAILED' if (search_error.msg is defined or 
+                                      download_error.msg is defined or 
+                                      installation_error.msg is defined or
+                                      fatal_error.msg is defined) else
+                           'NO_UPDATES' if update_state.search_completed and not update_state.has_updates else
+                           'COMPLETED' }}",
+    "process_details": {
+      "categories_selected": {{ update_categories | to_json }},
+      "search": {
+        "success": {{ update_state.search_completed | default(false) | bool | lower }},
+        "error": {{ search_error.msg | default('') | to_json }},
+        "found_updates": {{ search_results.found_update_count | default(0) }}
+      },
+      "download": {
+        "success": {{ update_state.download_completed | default(false) | bool | lower }},
+        "error": {{ download_error.msg | default('') | to_json }}
+      },
+      "installation": {
+        "success": {{ update_state.install_completed | default(false) | bool | lower }},
+        "error": {{ installation_error.msg | default('') | to_json }},
+        "installed_updates": {{ installation_results.installed_update_count | default(0) }},
+        "failed_updates": {{ installation_results.failed_update_count | default(0) }}
+      },
+      "reboot": {
+        "required": {{ update_state.reboot_needed | default(false) | bool | lower }},
+        "details": {
+          "performed": {{ installation_results.rebooted | default(false) | bool | lower }},
+          "count": {{ installation_results.reboot_count | default(0) }}
+        }
+      }
+    },
+    "updates": {
+      "installed": {
+        "count": {{ installation_results.installed_update_count | default(0) }},
+        "details": {{ installation_results.updates | default({}) | to_json }}
+      },
+      "failed": {
+        "count": {{ installation_results.failed_update_count | default(0) }},
+        "details": {{ installation_results.failed_updates | default({}) | to_json }}
+      },
+      "filtered": {
+        "count": {{ search_results.filtered_updates | default([]) | length }},
+        "details": {{ search_results.filtered_updates | default([]) | to_json }}
+      }
+    },
+    "fatal_error": {{ fatal_error | default({}) | to_json }},
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
+                         'Snapshot failed' if not previous_results.snapshot.can_continue else
+                         'Repository configuration failed' if not previous_results.repo_config.can_continue else '' }}"
+  }
+}

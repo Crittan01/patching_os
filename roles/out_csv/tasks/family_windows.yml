@@ -1,0 +1,53 @@
+---
+# tasks file for roles/out_csv
+- name: Creacion del archivo CSV y Encabezado
+  ansible.builtin.lineinfile:
+    path: "{{ log_dir }}/{{ crq_input | upper }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: "CRQ,Lote,Hostname,IP,Distribucion,Fecha,Repo_Fuente,Cantidad_Paquetes,Paquetes_Eliminados,Paquetes_Instalados,Punto_Fallo,Estado_Final"
+    create: true
+    state: present
+    owner: "{{ owner }}"
+    group: "{{ group }}"
+    mode: "0755"
+  delegate_to: "{{ server_informes }}"
+  run_once: true
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+
+- name: Escribir Columnas del CSV
+  ansible.builtin.lineinfile:
+    insertafter: EOF
+    dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: >-
+      {{ crq_input | upper }},
+      {{- lote | default('N/A') }},
+      {{- inventory_hostname }},
+      {{- ip | default(ansible_host) }},
+      {{- ansible_distribution }},
+      {{- results.post_validation.timestamp }},
+      {{- results.repo_config.wsus_details.server }},
+      {{- results.patching.updates.installed.count }},
+      {{- 'N/A' }},
+      {%- if results.patching.updates.installed.count == 0 or results.patching.updates.installed.details | length == 0 -%}
+        No updates required
+      {%- else -%}
+        {{ results.patching.updates.installed.details | dict2items | map(attribute='value') | map(attribute='kb') |
+        flatten | map('regex_replace', '^', 'KB') | join('|') }}
+      {%- endif -%},
+      {{- 'Validacion Previa' if not results.pre_validation.can_continue else
+          'Proceso Snapshot' if not results.snapshot.can_continue else
+          'Configuracion de Repositorio' if not results.repo_config.can_continue else
+          'Proceso de Parchado' if not results.patching.can_continue else
+          'Validacion Post-Parchado' if not results.post_validation.can_continue else
+          'Ninguno' }},
+      {{- results.post_validation.status }}
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+
+#      {{- results.pre_validation.filesystem_details.threshold_gb }},
+#      {{- results.pre_validation.filesystem_details.space_available_gb }},

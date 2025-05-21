@@ -1,0 +1,495 @@
+---
+config_repo_servidor_repo: ansibleforeman.coldecom.com
+config_repo_ip_repo: 10.181.5.239
+server_informes: 192.168.20.85
+owner: ansible
+group: ansible
+url_base: "https://{{ config_repo_servidor_repo }}/pulp/content/Default_Organization/Library"
+
+# CREDENCIAL IACOLCOAUTO ENCRYPT
+ansible_pwd: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  31326239633464393039363032356333613039306266376665613930323662393733373466393661
+  6636393235373732383139636438326363343032326237610a333763386365616236633830316631
+  32323435363961643866623431616336316530653466663632346533326435613435653535386239
+  3365323863366435350a336633643332366164326333343030376134373631303230383763353830
+  3332
+
+# CREDENCIALES VMWARE (VCENTER)
+vcenter_credentials:
+  vcbogdis05.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+  vcswbogdis02.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+  vcswbogdis01.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+  vcbogdis06.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+  vcmedcap01.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+  vcbogdis04.coldecom.com:
+    username: "ia_akb30_ansible@colombiana"
+    password: "{{ vcenter_cred }}"
+
+vcenter_cred: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  61396532626461623161343361303131383633323635613037303131373839643037366464306236
+  3731653334366461626266616136373333313465363866360a613765666562626233336535333763
+  65366365623538353135353564623262636237626538643432366330396561663864613739303032
+  3035376362303562310a383837393464333830356336396662366137663536313266623934663732
+  3665
+
+# CREDENCIALES VMWARE (STANDALONE)
+esxi_credentials:
+  "10.42.3.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.42.3.11":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.78.3.61":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.78.0.10":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.51.0.20":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.51.3.88":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.110.3.8":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.110.3.10":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.81.3.40":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.81.3.98":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.234.3.8":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.234.3.9":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.124.3.98":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.124.3.9":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.222.0.30":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.222.0.36":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.64.3.11":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.64.3.9":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.154.3.6":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.154.3.3":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.41.0.34":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.41.3.8":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.201.3.15":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.201.3.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.237.3.10":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.237.3.20":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.206.3.10":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.141.0.32":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.141.3.4":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.233.3.1":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.233.3.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.131.0.31":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.131.0.36":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.58.3.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.58.3.6":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.55.0.30":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.55.0.31":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.251.3.16":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.251.3.24":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.121.3.23":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.69.0.17":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.69.0.40":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.53.3.4":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.53.0.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.206.3.5":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+  "10.121.3.13":
+    username: "IACOLCOAUTO"
+    password: "{{ esxi_cred }}"
+
+esxi_cred: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  39346230653339386230383765316334616630393934386163316364653234613730636166346535
+  3937663435613839643765666463383731363762346238350a383531316365633336373639663662
+  65343665353539393332306535346331653937643365353163633237313663366531616335386639
+  3237363533333964330a346165386264396631306237383236643631326364343665383561326535
+  3838
+
+# CREDENCIALES SHAREPOINT
+tenant_id: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  65613165616366316238633834393765653838316631333266663230346533333038313066396337
+  3261386530623365623266616332306136333233376335380a356430376262343333633939366366
+  61623031353764636531396331376563306263323930666361323336383361396639336566363835
+  6531316633386638640a396231646631383632383034626531633735353438623234623865393630
+  38313431653339666339643264363565643833333036623266313334313339376463656138653565
+  6235646365303566323139386634303236343965376562323439
+client_id: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  35646435653939386134346461313132366162616539623938656561346533373430396236636231
+  3931333930313331363035336464373032363361326661640a646138623730363237303239666431
+  63666232353334316261363637306631336662393265323137336235383262666636383964643035
+  3139653239616534620a343465623763643737616664356630326334646436306232646134356333
+  64343238343461363332653537613037616634643366363336393666623238663563333761393230
+  6631623139303664373065303539326265633833663530333633
+client_secret: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  37623266333864303831393261343236663032303162393138366433373134616462643063656133
+  3162376262313939316562373431623232646635333133650a363163383632303235656166653131
+  34376631623161383133663061616230373435303139383332623733343733343366313931346337
+  6363323932653264390a386234626335666133666332393834366266613732326565373431356336
+  32346138626435383466623436633137316334643966356138316566656338646332383236356562
+  6638653335663563363937656436373836356532623538306435
+
+# MAPA DICCIONARIOS URL REPOS
+config_repo_repos_config:
+  "RedHat":
+    "7":
+      "7.3":
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.3/x86_64/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.3/x86_64/optional/os"
+          name: "optional"
+          priority: 97
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7Server/x86_64/extras/os"
+          name: "extras"
+          priority: 96
+        - url: "{{ url_base }}/content/eus/rhel/server/7/7.3/x86_64/os"
+          name: "eus-update"
+          priority: 95
+      "7.8":
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.8/x86_64/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.8/x86_64/optional/os"
+          name: "optional"
+          priority: 97
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7Server/x86_64/extras/os"
+          name: "extras"
+          priority: 96
+      "7.9":
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.9/x86_64/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7.9/x86_64/optional/os"
+          name: "optional"
+          priority: 97
+        - url: "{{ url_base }}/content/dist/rhel/server/7/7Server/x86_64/extras/os"
+          name: "extras"
+          priority: 96
+    "8":
+      "8.3":
+        - url: "{{ url_base }}/content/dist/rhel8/8.3/x86_64/baseos/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel8/8.3/x86_64/appstream/os"
+          name: "appstream"
+          priority: 97
+      "8.8":
+        - url: "{{ url_base }}/content/dist/rhel8/8.8/x86_64/baseos/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel8/8.8/x86_64/appstream/os"
+          name: "appstream"
+          priority: 97
+        - url: "{{ url_base }}/content/eus/rhel8/8.8/x86_64/baseos/os"
+          name: "eus-baseos"
+          priority: 96
+        - url: "{{ url_base }}/content/eus/rhel8/8.8/x86_64/appstream/os"
+          name: "eus-appstream"
+          priority: 95
+    "9":
+      "9.4":
+        - url: "{{ url_base }}/content/dist/rhel9/9.4/x86_64/appstream/os"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/content/dist/rhel9/9.4/x86_64/baseos/os"
+          name: "appstream"
+          priority: 97
+  "SLES":
+    "15":
+      "4":
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP4_x86_64_id_2299_/2299_SLE-Module-Basesystem15-SP4-Updates_for_sle-15-x86_64"
+          name: "basesystem-update"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP4_x86_64_id_2299_/2299_SLE-Module-Basesystem15-SP4-Pool_for_sle-15-x86_64"
+          name: "basesystem-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP4_x86_64_id_2299_/2299_SLE-Module-Basesystem15-SP4-Source-Pool_for_sle-15-x86_64"
+          name: "basesystem-source-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Server_Applications_Module_15_SP4_x86_64_id_2307_/2307_SLE-Module-Server-Applications15-SP4-Updates_for_sle-15-x86_64"
+          name: "server-applications-update"
+          priority: 97
+        - url: "{{ url_base }}/custom/Server_Applications_Module_15_SP4_x86_64_id_2307_/2307_SLE-Module-Server-Applications15-SP4-Pool_for_sle-15-x86_64"
+          name: "server-applications-pool"
+          priority: 97
+        - url: "{{ url_base }}/custom/SUSE_Linux_Enterprise_Server_15_SP4_x86_64_id_2292_/2292_SLE-Product-SLES15-SP4-Updates_for_sle-15-x86_64"
+          name: "product-sles-updates"
+          priority: 96
+        - url: "{{ url_base }}/custom/SUSE_Linux_Enterprise_Server_15_SP4_x86_64_id_2292_/2292_SLE-Product-SLES15-SP4-Pool_for_sle-15-x86_64"
+          name: "product-sles-pool"
+          priority: 96
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP4_x86_64_id_2347_/2347_SLE-Module-Packagehub-Subpackages15-SP4-Pool_for_sle-15-x86_64"
+          name: "packagehub-sub-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP4_x86_64_id_2347_/2347_SLE-Module-Packagehub-Subpackages15-SP4-Updates_for_sle-15-x86_64"
+          name: "packagehub-sub-updates"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP4_x86_64_id_2347_/2347_SUSE-PackageHub-15-SP4-Backports-Pool_for_sle-15-x86_64"
+          name: "packagehub-backports-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP4_x86_64_id_2347_/2347_SUSE-PackageHub-15-SP4-Pool_for_sle-15-x86_64"
+          name: "packagehub-pool"
+          priority: 95
+      "5":
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Updates_for_sle-15-x86_64"
+          name: "basesystem-update"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Pool_for_sle-15-x86_64"
+          name: "basesystem-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Source-Pool_for_sle-15-x86_64"
+          name: "basesystem-source-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Server_Applications_Module_15_SP5_x86_64_id_2482_/2482_SLE-Module-Server-Applications15-SP5-Updates_for_sle-15-x86_64"
+          name: "server-applications-update"
+          priority: 97
+        - url: "{{ url_base }}/custom/Server_Applications_Module_15_SP5_x86_64_id_2482_/2482_SLE-Module-Server-Applications15-SP5-Pool_for_sle-15-x86_64"
+          name: "server-applications-pool"
+          priority: 97
+        - url: "{{ url_base }}/custom/SUSE_Linux_Enterprise_Server_15_SP5_x86_64_id_2465_/2465_SLE-Product-SLES15-SP5-Updates_for_sle-15-x86_64"
+          name: "product-sles-updates"
+          priority: 96
+        - url: "{{ url_base }}/custom/SUSE_Linux_Enterprise_Server_15_SP5_x86_64_id_2465_/2465_SLE-Product-SLES15-SP5-Pool_for_sle-15-x86_64"
+          name: "product-sles-pool"
+          priority: 96
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SLE-Module-Packagehub-Subpackages15-SP5-Pool_for_sle-15-x86_64"
+          name: "packagehub-sub-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SLE-Module-Packagehub-Subpackages15-SP5-Updates_for_sle-15-x86_64"
+          name: "packagehub-sub-updates"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SUSE-PackageHub-15-SP5-Backports-Pool_for_sle-15-x86_64"
+          name: "packagehub-backports-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SUSE-PackageHub-15-SP5-Pool_for_sle-15-x86_64"
+          name: "packagehub-pool"
+          priority: 95
+  "SLED":
+    "15":
+      "5":
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Updates_for_sle-15-x86_64"
+          name: "basesystem-update"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Pool_for_sle-15-x86_64"
+          name: "basesystem-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Basesystem_Module_15_SP5_x86_64_id_2474_/2474_SLE-Module-Basesystem15-SP5-Source-Pool_for_sle-15-x86_64"
+          name: "basesystem-source-pool"
+          priority: 98
+        - url: "{{ url_base }}/custom/Desktop_Applications_Module_15_SP5_x86_64_id_2478_/2478_SLE-Module-Desktop-Applications15-SP5-Updates_for_sle-15-x86_64"
+          name: "desktop-applications-update"
+          priority: 97
+        - url: "{{ url_base }}/custom/Desktop_Applications_Module_15_SP5_x86_64_id_2478_/2478_SLE-Module-Desktop-Applications15-SP5-Pool_for_sle-15-x86_64"
+          name: "desktop-applications-pool"
+          priority: 97
+        - url: "{{ url_base }}/custom/SUSE_Linux_Enterprise_Workstation_Extension_15_SP5_x86_64_id_2513_/2513_SLE-Product-WE15-SP5-Updates_for_sle-15-x86_64"
+          name: "product-we-update"
+          priority: 96
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SLE-Module-Packagehub-Subpackages15-SP5-Pool_for_sle-15-x86_64"
+          name: "packagehub-sub-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SLE-Module-Packagehub-Subpackages15-SP5-Updates_for_sle-15-x86_64"
+          name: "packagehub-sub-updates"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SUSE-PackageHub-15-SP5-Backports-Pool_for_sle-15-x86_64"
+          name: "packagehub-backports-pool"
+          priority: 95
+        - url: "{{ url_base }}/custom/SUSE_Package_Hub_15_SP5_x86_64_id_2562_/2562_SUSE-PackageHub-15-SP5-Pool_for_sle-15-x86_64"
+          name: "packagehub-pool"
+          priority: 95
+  "CentOS":
+    "7":
+      "7.1":
+        - url: "{{ url_base }}/custom/Centos_7_1_1503/BaseOs"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_1_1503/extras_7_1_1503"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_1_1503/updates"
+          name: "updates"
+          priority: 96
+      "7.3":
+        - url: "{{ url_base }}/custom/Centos_7_3_1611/BaseOS_7_3_1611"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_3_1611/extras_7_3_1611"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_3_1611/updates_7_3_1611"
+          name: "updates"
+          priority: 96
+      "7.5":
+        - url: "{{ url_base }}/custom/Centos_7_5_1804/BaseOS_7_5_1804"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_5_1804/extras_7_5_1804"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_5_1804/updates_7_5_1804"
+          name: "updates"
+          priority: 96
+      "7.6":
+        - url: "{{ url_base }}/custom/Centos_7_6_1810/BaseOS_7_6_1810"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_6_1810/extras_7_6_1810"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_6_1810/updates_7_6_1810"
+          name: "updates"
+          priority: 96
+      "7.7":
+        - url: "{{ url_base }}/custom/Centos_7_7_1908/BaseOS_7_7_1908"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_7_1908/extras_7_7_1908"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_7_1908/updates_7_7_1908"
+          name: "updates"
+          priority: 96
+      "7.9":
+        - url: "{{ url_base }}/custom/Centos_7_9_2009/Centos_77_9_2009"
+          name: "base"
+          priority: 98
+        - url: "{{ url_base }}/custom/Centos_7_9_2009/extras_7_9_2009"
+          name: "extras"
+          priority: 97
+        - url: "{{ url_base }}/custom/Centos_7_7_1908/updates_7_7_1908"
+          name: "updates"
+          priority: 96
+    "8":
+  #      "8.2":
+  #        - url: "{{ url_base }}"
+  #          name: "baseos"
+  #          priority: 98
+  #        - url: "{{ url_base }}"
+  #          name: "appstream"
+  #          priority: 97
+  #        - url: "{{ url_base }}"
+  #          name: "extras"
+  #      "Stream":
+  #        - url: "{{ url_base }}"
+  #          name: "baseos"
+  #          priority: 98
+  #        - url: "{{ url_base }}"
+  #          name: "appstream"
+  #          priority: 97
+  #        - url: "{{ url_base }}"
+  #          name: "extras"
+
+  "OracleLinux":
+    "8":
+      "NA":
+        - url: "{{ url_base }}/custom/Oracle_Linux_8/BaseOS_Oracle_8"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/custom/Oracle_Linux_8/AppStream_oracle8"
+          name: "appstream"
+          priority: 97
+        - url: "{{ url_base }}/custom/Oracle_Linux_8/UEKR7_Oracle8"
+          name: "eukr7"
+          priority: 96
+    "9":
+      "NA":
+        - url: "{{ url_base }}/custom/Oracle_linux_9/BaseOS_Oracle_9"
+          name: "baseos"
+          priority: 98
+        - url: "{{ url_base }}/custom/Oracle_linux_9/AppStream_oracle9"
+          name: "appstream"
+          priority: 97
+        - url: "{{ url_base }}/custom/Oracle_linux_9/UEKR7_Oracle9"
+          name: "eukr7"
+          priority: 96

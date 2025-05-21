@@ -1,0 +1,120 @@
+---
+- name: Validaciones Post
+  hosts: "{{ lote | default([]) }}"
+  gather_facts: false
+  serial: "{{ serial | default(1) }}"
+  vars_files:
+    - vars/global.yml
+
+  vars:
+    log_dir: "/var/log/ansible_patches"
+
+  pre_tasks:
+    - name: Leer resultado de parchado
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.slurp:
+        src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+      register: patching_file
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+    - name: Decodificar JSON de parchado
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.set_fact:
+        previous_results: "{{ patching_file['content'] | b64decode | from_json }}"
+
+    - name: Recolectar FACTS
+      ansible.builtin.setup:
+      ignore_unreachable: true
+      register: fact_result
+      retries: 5
+      delay: 10
+      until: not fact_result.unreachable | default(false)
+
+    # Verificar si los facts se recopilaron correctamente
+    - name: Establecer el estado de facts
+      ansible.builtin.set_fact:
+        facts_gathered: true
+      when: ansible_os_family is defined
+
+    - name: Manejar caso de facts fallidos
+      when: facts_gathered is not defined
+      block:
+        - name: Registrar error de recolección de facts
+          ansible.builtin.set_fact:
+            fact_error: {
+              "error": "No se pudo establecer conexion con el servidor",
+              "type": "CONNECT_FAILED"
+            }
+
+        - name: Crear JSON para host con facts fallidos
+          ansible.builtin.copy:
+            content: |
+              {
+                "pre_validation": {{ previous_results.pre_validation | to_json }},
+                "snapshot": {{ previous_results.pre_validation | to_json }},
+                "repo_config": {{ previous_results.pre_validation | to_json }},
+                "patching": {{ previous_results.pre_validation | to_json }},
+                "final_results": {
+                  "status": "FAILED",
+                  "can_continue": false,
+                  "error": {{ fact_error | to_json }}
+                }
+              }
+            dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+  tasks:
+    - name: Validaciones Post para Familia SLES
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'Suse'
+        - ansible_architecture == 'x86_64'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      become: true
+      block:
+        - name: Validaciones Post de Maquinas Familia 'Suse'
+          ansible.builtin.include_role:
+            name: validacion_post
+            tasks_from: family_suse.yml
+
+    - name: Validaciones Post para Familia RHEL
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'RedHat'
+        - ansible_architecture == 'x86_64'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      become: true
+      block:
+        - name: Validaciones Post de Maquinas Familia 'RedHat'
+          ansible.builtin.include_role:
+            name: validacion_post
+            tasks_from: family_rhel.yml
+
+    - name: Validaciones Post para Familia Windows
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'Windows'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Validaciones Post de Maquinas Familia 'Windows'
+          ansible.builtin.include_role:
+            name: validacion_post
+            tasks_from: family_windows.yml

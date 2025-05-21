@@ -1,0 +1,154 @@
+---
+# tasks file for roles/parchado
+- name: BLOQUE parchado
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        update_categories: ["SecurityUpdates", "CriticalUpdates", "Updates"]
+        update_state:
+          has_updates: false
+          search_completed: false
+          download_completed: false
+          install_completed: false
+          reboot_needed: false
+        search_results: {}
+        download_results: {}
+        installation_results: {}
+        search_error: {}
+        download_error: {}
+        installation_error: {}
+
+    - name: Ejecutar proceso de parchado
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+        - previous_results.repo_config.can_continue
+      block:
+        - name: Buscar actualizaciones disponibles
+          block:
+            - name: Buscar updates
+              ansible.windows.win_updates:
+                category_names: "{{ update_categories }}"
+                state: searched
+              register: search_results
+              retries: 3
+              delay: 60
+              until: search_results is success and search_results.found_update_count is defined
+
+            - name: Debug - Buscar updates
+              ansible.builtin.debug:
+                var: search_results
+
+            - name: Actualizar estado de búsqueda
+              ansible.builtin.set_fact:
+                update_state: "{{ update_state | combine({'search_completed': true, 'has_updates': search_results.found_update_count > 0}) }}"
+          rescue:
+            - name: Registrar error de búsqueda
+              ansible.builtin.set_fact:
+                search_error:
+                  msg: "{{ ansible_failed_result.msg | default('Error desconocido') }}"
+                  details: "{{ ansible_failed_result }}"
+
+        - name: Procesar actualizaciones cuando existan
+          when: update_state.has_updates and not (search_error | length > 0)
+          block:
+            - name: Descargar actualizaciones
+              block:
+                - name: Validar directorio de reporte
+                  ansible.windows.win_stat:
+                    path: "{{ parchado_dir_reporte }}"
+                  register: dir_report
+
+                - name: Crear directorio de reporte
+                  ansible.windows.win_file:
+                    path: "{{ parchado_dir_reporte }}"
+                    state: directory
+                  when: not dir_report.stat.exists
+
+                - name: Ejecutar descarga
+                  ansible.windows.win_updates:
+                    category_names: "{{ update_categories }}"
+                    state: downloaded
+                  register: download_results
+                  retries: 3
+                  delay: 60
+                  until: download_results is success
+
+                - name: Debug - Ejecutar descarga
+                  ansible.builtin.debug:
+                    var: download_results
+
+                - name: Actualizar estado de descarga
+                  ansible.builtin.set_fact:
+                    update_state: "{{ update_state | combine({'download_completed': true}) }}"
+              rescue:
+                - name: Registrar error de descarga
+                  ansible.builtin.set_fact:
+                    download_error:
+                      msg: "{{ ansible_failed_result.msg | default('Error desconocido') }}"
+                      details: "{{ ansible_failed_result }}"
+
+            - name: Instalar actualizaciones
+              when: update_state.download_completed and not (download_error | length > 0)
+              block:
+                - name: Instalar actualizaciones
+                  ansible.windows.win_updates:
+                    category_names: "{{ update_categories }}"
+                    state: installed
+                    reboot: true
+                    reboot_timeout: 3600
+                    log_path: "{{ parchado_dir_reporte }}win_updates.log"
+                  register: installation_results
+                  retries: 3
+                  delay: 60
+                  until: installation_results is success
+
+                - name: Debug - Instalar actualizaciones
+                  ansible.builtin.debug:
+                    var: installation_results
+
+                - name: Actualizar estado de instalación
+                  ansible.builtin.set_fact:
+                    update_state: "{{ update_state | combine({'install_ok': true, 'reboot_needed': installation_results.reboot_required | default(false)}) }}"
+
+                - name: Ejecucion usoclient # usoclient startscan
+                  ansible.windows.win_shell: |
+                    usoclient startinteractivescan
+                  args:
+                    executable: powershell.exe
+                  ignore_errors: true # noqa: ignore-errors
+                  changed_when: false
+              rescue:
+                - name: Registrar error de instalación
+                  ansible.builtin.set_fact:
+                    installation_error:
+                      msg: "{{ ansible_failed_result.msg | default('Error desconocido') }}"
+                      details: "{{ ansible_failed_result }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: templates/report_family_windows.j2
+        dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        mode: "0755"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+
+  rescue:
+    - name: Crear JSON de resultados en caso de error
+      ansible.builtin.template:
+        src: templates/report_family_windows.j2
+        dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        mode: "0755"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

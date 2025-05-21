@@ -1,0 +1,44 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {
+    "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
+                  'FAILED' if (snapshot_error | length > 0) else
+                  'OK' if (snapshot_result.changed or ('already exists' in snapshot_result.msg | default(''))) else 'FAILED' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+                      snapshot_error | length == 0 and
+                      (snapshot_result.changed or 'already exists' in snapshot_result.msg | default(''))) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "virtualization_details": {
+      "type": "{{ ansible_virtualization_type }}",
+      "role": "{{ ansible_virtualization_role }}",
+      "vendor": "{{ ansible_system_vendor }}",
+      "vcenter": "{{ vcenter_vmware }}",
+      "datacenter": "{{ datacenter_vmware }}",
+      "vm_name": "{{ vm_name }}",
+      "tipo_vmware": "{{ tipo_vmware }}"
+    },
+    "snapshot_details": {
+      "name": "{{ snapshot_name if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') else '' }}",
+      "description": "{{ snapshot_description if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') else '' }}",
+      "created_at": "{{ ansible_date_time.iso8601 if snapshot_result.changed or 'already exists' in snapshot_result.msg | default('') else '' }}",
+      "operation": "{{ 'Created' if (snapshot_result.changed or 'Create Snapshot' in snapshot_result.stdout | default('') ) else 
+                      'Already Exists' if snapshot_name in snap_exists.stdout | default('') or 'already exists' in snapshot_result.msg | default('') else 
+                      'Failed' }}",
+      "memory_dump": {{ false | lower }},
+      "quiesce": {{ false | lower }},
+      "vmid": "{{ clean_vm_id | default('') }}",
+      "snapshot_id": "{{ clean_snap_id | default('') }}"
+    },
+    "connection_details": {
+      "ssh_available": {{ (ssh_check is success) | lower }},
+      "credentials_valid": {{ (credential_check is success) | default(false) | lower }},
+      "port": 22
+    },
+    "result": {{ snapshot_result | to_json }},
+    "errors": {{ snapshot_error | to_json }},
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
+                         'SSH connection failed' if not (ssh_check is success) else
+                         'Authentication failed' if snapshot_error.credentials is defined else
+                         '' }}"
+  }
+}

@@ -1,0 +1,132 @@
+---
+- name: Gestion de snapshot en una VM
+  hosts: "{{ lote | default([]) }}"
+  gather_facts: false
+  serial: "{{ serial | default(1) }}"
+  vars_files:
+    - vars/global.yml
+
+  vars:
+    log_dir: "/var/log/ansible_patches"
+    snapshot_name: "snapshot_ansible_{{ crq_input | lower }}_{{ lote }}"
+    snapshot_description: "Snapshot creado con Ansible {{ crq_input | upper }} {{ lote }} {{ ansible_date_time.iso8601 }}"
+
+  pre_tasks:
+    - name: Leer resultado de pre-validación
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.slurp:
+        src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
+      register: pre_validation_file
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+        ansible_python_interpreter: /usr/bin/python3
+  #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+    - name: Decodificar JSON de pre-validación
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.set_fact:
+        previous_results: "{{ pre_validation_file['content'] | b64decode | from_json }}"
+
+    - name: Recolectar FACTS
+      ansible.builtin.setup:
+      ignore_unreachable: true
+      register: fact_result
+      retries: 5
+      delay: 10
+      until: not fact_result.unreachable | default(false)
+
+    # Verificar si los facts se recopilaron correctamente
+    - name: Establecer el estado de facts
+      ansible.builtin.set_fact:
+        facts_gathered: true
+      when: ansible_os_family is defined
+
+    - name: Manejar caso de facts fallidos
+      when: facts_gathered is not defined
+      block:
+        - name: Registrar error de recolección de facts
+          ansible.builtin.set_fact:
+            fact_error: {
+              "error": "No se pudo establecer conexion con el servidor",
+              "type": "CONNECT_FAILED"
+            }
+
+        - name: Crear JSON para host con facts fallidos
+          ansible.builtin.copy:
+            content: |
+              {
+                "pre_validation": {{ previous_results.pre_validation | to_json }},
+                "snapshot": {
+                  "status": "FAILED",
+                  "can_continue": false,
+                  "error": {{ fact_error | to_json }}
+                }
+              }
+            dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+  tasks:
+    - name: Snapshot para Servidores VMware VCenter
+      when:
+        - facts_gathered is defined
+        - ansible_virtualization_type == 'VMware'
+        - ansible_virtualization_role == 'guest'
+        - ansible_system_vendor is search("VMware")
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+        - tipo_vmware == "vcenter"
+      block:
+        - name: Crear Snapshot VMware VCenter
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: take_snap_vcenter.yml
+
+    - name: Snapshot para Servidores VMware Standalone
+      when:
+        - facts_gathered is defined
+        - ansible_virtualization_type == 'VMware'
+        - ansible_virtualization_role == 'guest'
+        - ansible_system_vendor is search("VMware")
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+        - tipo_vmware == "standalone"
+      block:
+        - name: Crear Snapshot VMware Standalone
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: take_snap_standalone.yml
+
+    - name: Skip para Servidores No Virtualizados VMware
+      when:
+        - facts_gathered is defined
+        - ansible_virtualization_type != 'VMware' or ansible_virtualization_role != 'guest'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Skip Snapshot - No VMware
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: skip.yml
+
+    - name: Cancel por verificacion de variables
+      when:
+        - facts_gathered is defined
+        - (tipo_vmware == 'null' or vm_name == 'null' or vcenter_vmware == 'null' or datacenter_vmware == 'null')
+      block:
+        - name: Cancel por verificacion de variables
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: cancel.yml

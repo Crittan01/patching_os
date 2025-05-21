@@ -1,0 +1,130 @@
+---
+# tasks file take_snap_vcenter for roles/snapshot
+- name: Validacion y Creacion de Snapshot en la VM
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        snapshot_error: {}
+        snapshot_result:
+          changed: false
+          stdout: ""
+          stderr: ""
+          msg: "Not executed"
+          rc: 0
+        snapshot_name: "{{ snapshot_name }}"
+        snapshot_description: "{{ snapshot_description }}"
+        validation_errors: []
+
+    - name: Validar configuracion vCenter
+      ansible.builtin.set_fact:
+        config_validation: "{{
+          {'tipo_vmware': tipo_vmware == 'vcenter',
+          'vcenter_exists': vcenter_vmware in vcenter_credentials,
+          'vcenter_format': vcenter_vmware is match('.*vc.*'),
+          'expected_type': 'vcenter' if vcenter_vmware is match('.*vc.*') else 'standalone'} }}"
+
+    - name: Registrar error si la configuracion no coincide
+      when: not config_validation.tipo_vmware or not config_validation.vcenter_exists or not config_validation.vcenter_format
+      ansible.builtin.set_fact:
+        snapshot_error: "{{ snapshot_error | combine({
+          'config_mismatch': {
+            'error': 'Configuracion incorrecta de vCenter' | default(ansible_failed_result.msg) | regex_replace('\n', ' '),
+            'type': 'CONFIG_ERROR',
+            'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+            'details': {
+              'tipo_actual': tipo_vmware,
+              'vcenter_actual': vcenter_vmware,
+              'tipo_esperado': config_validation.expected_type,
+              'razon': 'Host configurado como VCenter pero no existe en vcenter_credentials' if not config_validation.vcenter_exists else
+                       'Formato de vCenter incorrecto' if not config_validation.vcenter_format else
+                       'Tipo de VMware no coincide con la configuracion esperada'}}}) }}"
+
+    - name: Proceso de Snapshot VCenter
+      when:
+        - previous_results.pre_validation.can_continue | bool
+        - snapshot_error | length == 0
+      block:
+        - name: Determinar tipo de VMware
+          ansible.builtin.debug:
+            msg: "El servidor {{ inventory_hostname }} está en {{ tipo_vmware | upper }} ({{ vcenter_vmware }})"
+
+        - name: Verificar existencia de VM en vCenter
+          community.vmware.vmware_guest_info:
+            hostname: "{{ vcenter_vmware }}"
+            username: "{{ vcenter_credentials[hostvars[inventory_hostname]['vcenter_vmware']]['username'] }}"
+            password: "{{ vcenter_credentials[hostvars[inventory_hostname]['vcenter_vmware']]['password'] }}"
+            validate_certs: false
+            datacenter: "{{ datacenter_vmware }}"
+            name: "{{ vm_name }}"
+          delegate_to: localhost
+          register: vm_info
+          ignore_errors: true
+
+        - name: Registrar error si la VM no existe
+          when: vm_info.failed | default(true)
+          ansible.builtin.set_fact:
+            snapshot_error: "{{ snapshot_error | combine({
+              'vm_not_found': {
+                'error': 'VM no encontrada en vCenter' | default(ansible_failed_result.msg) | regex_replace('\n', ' '),
+                'type': 'VM_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                'details': {
+                  'vm_name': vm_name,
+                  'vcenter': vcenter_vmware,
+                  'datacenter': datacenter_vmware,
+                  'error_detail': vm_info.msg | default('Unknown error')}}}) }}"
+
+        - name: Crear snapshot en la VM (VCenter)
+          when: not vm_info.failed | default(true)
+          community.vmware.vmware_guest_snapshot:
+            hostname: "{{ vcenter_vmware }}"
+            username: "{{ vcenter_credentials[hostvars[inventory_hostname]['vcenter_vmware']]['username'] }}"
+            password: "{{ vcenter_credentials[hostvars[inventory_hostname]['vcenter_vmware']]['password'] }}"
+            validate_certs: false
+            datacenter: "{{ datacenter_vmware }}"
+            folder: "vm" # Carpeta donde se encuentra la VM
+            name: "{{ vm_name }}"
+            state: present
+            snapshot_name: "{{ snapshot_name }}"
+            description: "{{ snapshot_description }}"
+            memory_dump: false
+            quiesce: false
+          delegate_to: localhost
+          register: snapshot_result
+      rescue:
+        - name: Registrar error de snapshot en la VM (VCenter)
+          ansible.builtin.set_fact:
+            snapshot_error: "{{ snapshot_error | combine({
+              'create_snapshot': {
+                'error': ansible_failed_result.msg | default('Error en creacion de Snapshot') | regex_replace('\n', ' '),
+                'type': 'SNAPSHOT_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown',
+                'raw_error': ansible_failed_result | to_json}}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_vcenter.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_vcenter.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

@@ -1,0 +1,160 @@
+---
+# tasks file for roles/validacion_post
+- name: Validar estado previo y ejecutar validacion post
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        active_services_final: []
+        service_changes: []
+        service_recovery: { "results": [] }
+        validation_error: {}
+        services_info:
+          {
+            "total_antes": "{{ previous_results.pre_validation.services_initial.active_list | length }}",
+            "total_despues": 0,
+            "servicios_detenidos": [],
+            "servicios_nuevos": [],
+            "estado_servicios": "SKIPPED",
+          }
+
+    - name: Bloque de valdiacion Post
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+        - previous_results.repo_config.can_continue
+        - previous_results.patching.can_continue
+      block:
+        # Validación de Utilidades yum o dnf
+        - name: Validacion Utilidades yum o dnf
+          block:
+            - name: Instalar dnf-utils si el gestor es DNF
+              ansible.builtin.dnf:
+                name:
+                  - dnf-utils
+              when: ansible_pkg_mgr == 'dnf'
+
+            - name: Instalar yum-utils si el gestor es YUM
+              ansible.builtin.yum:
+                name:
+                  - yum-utils
+              when: ansible_pkg_mgr == 'yum'
+
+            - name: Ejecutar verificación de reinicio en RHEL
+              ansible.builtin.command:
+                cmd: needs-restarting
+              register: needs_reboot_result
+              changed_when: false
+              failed_when: needs_reboot_result.rc not in [0, 1]
+              ignore_errors: true
+
+            - name: Comprobar si se requiere reinicio en RHEL
+              ansible.builtin.debug:
+                msg:
+                  - "Código de salida: {{ needs_reboot_result.rc }}"
+                  - "SI se requiere reinicio."
+              when: needs_reboot_result is defined and needs_reboot_result.rc == 1
+
+            - name: Comprobar si no se requiere reinicio en RHEL
+              ansible.builtin.debug:
+                msg:
+                  - "Código de salida: {{ needs_reboot_result.rc }}"
+                  - "NO se requiere reinicio."
+              when: needs_reboot_result is defined and needs_reboot_result.rc == 0
+          rescue:
+            - name: Registrar error de validación de Utilidades yum o dnf
+              ansible.builtin.set_fact:
+                validation_error: "{{ validation_error | combine(
+                  {'validacion_utilidades':
+                  {'error': ansible_failed_result.msg | default('Error en validacion de Utilidades') | regex_replace('\n', ' '),
+                  'type': 'UTILS_VALIDATION_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        # Validación de servicios
+        - name: Validar servicios
+          block:
+            - name: Validar servicios críticos
+              ansible.builtin.service_facts:
+
+            - name: Crear lista de servicios activos y en ejecución final
+              ansible.builtin.set_fact:
+                active_services_final: "{{ ansible_facts.services |
+                  dict2items |
+                  selectattr('value.state', 'equalto', 'running') |
+                  map(attribute='key') |
+                  list }}"
+
+            - name: Analizar Cambios en Servicios
+              ansible.builtin.set_fact:
+                services_info:
+                  total_antes: "{{ previous_results.pre_validation.services_initial.active_list | length }}"
+                  total_despues: "{{ active_services_final | length }}"
+                  servicios_detenidos: "{{ previous_results.pre_validation.services_initial.active_list | difference(active_services_final) }}"
+                  servicios_nuevos: "{{ active_services_final | difference(previous_results.pre_validation.services_initial.active_list) }}"
+                  estado_servicios:
+                    "{{ 'NO_CHANGES' if (previous_results.pre_validation.services_initial.active_list | length == active_services_final | length
+                    and (previous_results.pre_validation.services_initial.active_list | difference(active_services_final)) | length == 0)
+                    else 'SERVICES_CHANGED' }}"
+
+            - name: Intentar reiniciar servicios detenidos
+              ansible.builtin.service:
+                name: "{{ item }}"
+                state: started
+              register: service_recovery
+              loop: "{{ services_info.servicios_detenidos }}"
+              when: services_info.servicios_detenidos | length > 0
+          rescue:
+            - name: Registrar error de valdiacion servicios
+              ansible.builtin.set_fact:
+                validation_error: "{{ validation_error | combine(
+                  {'service_recovery':
+                  {'error': ansible_failed_result.msg | default('Error en recuperacion de Servicios') | regex_replace('\n', ' '),
+                  'type': 'SERVICE_RECOVERY_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+      rescue:
+        - name: Registrar error de validación post
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine(
+              {'post_validation':
+              {'error': ansible_failed_result.msg | default('Error en validacion de Post') | regex_replace('\n', ' '),
+              'type': 'POST_VALIDATION_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ validacion_post_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Registrar error general de validacion post
+      ansible.builtin.set_fact:
+        validation_error: "{{ validation_error | default({}) | combine({
+          'general_error': {
+          'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+          | default('Error General en el Proceso de validacion post') | regex_replace('\n', ' '),
+          'type': 'GENERAL_ERROR',
+          'module': ansible_failed_result.module_name | default('unknown'),
+          'host': inventory_hostname,
+          'task_args': ansible_failed_result.module_args | default({}) | to_json
+          }}) }}"
+
+    - name: Crear JSON de resultados - error general de validacion post
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

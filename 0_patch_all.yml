@@ -1,0 +1,21 @@
+---
+- name: Validacion Previa
+  import_playbook: 1_validacion_previa.yml
+
+- name: Toma Snapshot
+  import_playbook: 2_crear_snapshot.yml
+
+- name: Configuracion Repo
+  import_playbook: 3_configuracion_repo.yml
+
+- name: Proceso de Parchado
+  import_playbook: 4_parchado.yml
+
+- name: Validacion Post
+  import_playbook: 5_validacion_post.yml
+
+- name: Generacion de Informe
+  import_playbook: 6_informe.yml
+
+- name: Generacion de Informe
+  import_playbook: 7_csv.yml

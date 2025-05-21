@@ -1,0 +1,7 @@
+---
+# defaults file for roles/config_repo
+config_repo_log_dir: "/var/log/ansible_patches"
+
+repo_modify_existing: false # Por defecto, no modificar repos existentes
+repo_check_only: true # Solo verificar, no modificar
+repo_timeout: 30 # Timeout para verificación de repos

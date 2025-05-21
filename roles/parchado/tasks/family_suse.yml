@@ -1,0 +1,311 @@
+---
+# tasks file for roles/parchado
+- name: Validar estado previo y ejecutar parchado
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        paquetes_objetivo:
+          [
+            "kbd",
+            "patterns-base-base",
+            "patterns-base-minimal_base",
+            "shadow",
+            "util-linux",
+            "which",
+            "bash",
+            "coreutils",
+            "iproute2",
+            "wicked",
+#            "zypper",
+            "rpm",
+            "audit",
+            "audit-libs",
+            "bind-utils",
+            "bzip2",
+            "curl",
+            "gzip",
+            "htop",
+            "sysstat",
+            "logrotate",
+            "lsof",
+            "mtr",
+            "nano",
+            "net-tools",
+            "nmap",
+            "rsyslog",
+            "screen",
+            "sudo",
+            "sysstat",
+            "tar",
+            "traceroute",
+            "vim",
+            "wget",
+            "xz",
+          ]
+        paquetes_antes: { "stdout_lines": [] }
+        paquetes_despues: { "stdout_lines": [] }
+        paquetes_info:
+          antes: []
+          despues: []
+          nuevos: []
+          eliminados: []
+          actualizados: []
+        patch_error: {}
+        zypper_update: { "skipped": true }
+
+    - name: BLOQUE parchado
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+        - previous_results.repo_config.can_continue
+      block:
+        # Pre-parchado
+        - name: Validación de estado pre-parchado
+          block:
+            - name: Listar Repositorios (Antes)
+              ansible.builtin.command:
+                cmd: zypper lr
+              register: zypper_lr_antes
+              changed_when: false
+
+            - name: DEBUG - Listar Repositorios (Antes)
+              ansible.builtin.debug:
+                var: zypper_lr_antes.stdout_lines
+
+            - name: Listar Paquetes Antes del Parchado
+              ansible.builtin.shell: |
+                set -o pipefail
+                rpm -qa --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort
+              register: paquetes_antes
+              changed_when: false
+
+            - name: Guardar Listado de Paquetes Antes del Parchado
+              ansible.builtin.copy:
+                content: "{{ paquetes_antes.stdout }}"
+                dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt"
+                owner: "{{ owner }}"
+                group: "{{ group }}"
+                mode: "0755"
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+          rescue:
+            - name: Registrar error de pre-parchado
+              ansible.builtin.set_fact:
+                patch_error: "{{ patch_error | combine(
+                  {'pre_patch':
+                    {'error': ansible_failed_result.msg | default('Error listando paquetes iniciales') | regex_replace('\n', ' '),
+                    'type': 'PRE_PATCH_ERROR',
+                    'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        # Proceso de parchado
+        - name: Ejecutar Parchado si las validaciones previas son exitosas
+          block:
+            - name: Actualizar paquetes
+              community.general.zypper:
+                name: "{{ paquetes_objetivo }}"
+                state: latest
+                update_cache: true
+                disable_gpg_check: true
+              register: zypper_update
+
+            - name: DEBUG - Actualizar Paquetes si el gestor es ZYPPER
+              ansible.builtin.debug:
+                var: zypper_update
+
+            - name: Registrar resultados de la actualización
+              ansible.builtin.set_fact:
+                update_result:
+                  packages_updated: "{{ zypper_update.packages | default([]) | length }}"
+                  update_status: "{{ 'NO_UPDATES_AVAILABLE' if not zypper_update.changed else
+                    'UPDATED' if zypper_update.rc == 0 else 'FAILED' }}"
+          rescue:
+            - name: Registrar error de parchado
+              ansible.builtin.set_fact:
+                patch_error: >-
+                  {{
+                    patch_error | combine({
+                      'patching': {
+                        'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+                          | default('Error en proceso de parchado') | regex_replace('\n', ' '),
+                        'type': 'PATCH_ERROR',
+                        'details': {
+                          'task_name': ansible_failed_result.task_name | default('unknown'),
+                          'module_name': ansible_failed_result.module_name | default('unknown'),
+                          'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+                          'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' ')
+                        }
+                      }
+                    })
+                  }}
+
+        # Post-parchado y análisis
+        - name: Validación post-parchado
+          block:
+            - name: Listar Paquetes Después del Parchado
+              ansible.builtin.shell: |
+                set -o pipefail
+                rpm -qa --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort
+              register: paquetes_despues
+              changed_when: false
+
+            - name: Guardar Listado de Paquetes Después del Parchado
+              ansible.builtin.copy:
+                content: "{{ paquetes_despues.stdout }}"
+                dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
+                owner: "{{ owner }}"
+                group: "{{ group }}"
+                mode: "0755"
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+
+            - name: Comparar listas con diff
+              ansible.builtin.shell: >
+                sdiff --suppress-common-lines "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt" "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
+              register: diff_output
+              failed_when: diff_output.rc not in [0, 1] # `sdiff` retorna 0 si no hay diferencias, 1 si hay diferencias.
+              changed_when: false
+              delegate_to: "{{ server_informes }}"
+              vars:
+                ansible_connection: ssh
+                ansible_user: "{{ owner }}"
+                ansible_password: "{{ ansible_pwd }}"
+
+            - name: Limpiar tabs de la salida de sdiff
+              # Reemplaza secuencias de tabs (\t) por un espacio
+              ansible.builtin.set_fact:
+                clean_diff: "{{ diff_output.stdout_lines | map('regex_replace', '\\t+', ' ') | list }}"
+
+            - name: DEBUG
+              ansible.builtin.debug:
+                var: clean_diff
+
+            - name: Analizar Cambios en Paquetes
+              block:
+                - name: Realizar análisis de cambios
+                  ansible.builtin.set_fact:
+                    paquetes_info:
+                      antes: "{{ paquetes_antes.stdout_lines }}"
+                      despues: "{{ paquetes_despues.stdout_lines }}"
+                      nuevos: "{{ paquetes_despues.stdout_lines | difference(paquetes_antes.stdout_lines) }}"
+                      eliminados: "{{ paquetes_antes.stdout_lines | difference(paquetes_despues.stdout_lines) }}"
+                      actualizados: "{{ clean_diff | default([]) }}"
+                      estado_actualizacion: "{{ 'NO_UPDATES_AVAILABLE' if not zypper_update.changed else
+                        'NO_CHANGES' if (paquetes_despues.stdout_lines | difference(paquetes_antes.stdout_lines) | length == 0)
+                        else 'CHANGES_DETECTED' }}"
+              rescue:
+                - name: Registrar error de análisis
+                  ansible.builtin.set_fact:
+                    patch_error: "{{ patch_error | combine({'analysis':
+                      {'error': ansible_failed_result.msg | default('Error en análisis de paquetes'),
+                      'type': 'ANALYSIS_ERROR',
+                      'details':
+                      {'paquetes_antes': paquetes_antes.stdout_lines | length,
+                      'paquetes_despues': paquetes_despues.stdout_lines | length,
+                      'error_task': ansible_failed_task | default('unknown')}}}) }}"
+                    paquetes_info:
+                      antes: "{{ paquetes_antes.stdout_lines }}"
+                      despues: "{{ paquetes_despues.stdout_lines }}"
+                      nuevos: []
+                      eliminados: []
+                      actualizados: []
+                      estado_actualizacion: "ERROR_IN_ANALYSIS"
+          rescue:
+            - name: Registrar error de post-parchado
+              ansible.builtin.set_fact:
+                patch_error: "{{ patch_error | combine({
+                  'post_patch': {
+                    'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+                      | default('Error en validación post-parchado') | regex_replace('\n', ' '),
+                    'type': 'POST_PATCH_ERROR',
+                    'details': {
+                      'task_name': ansible_failed_result.task_name | default('unknown'),
+                      'module_name': ansible_failed_result.module_name | default('unknown'),
+                      'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+                      'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' ')
+                    }
+                  }}) }}"
+
+        # Restauración de repos
+        - name: Restaurar repositorios originales
+          block:
+            - name: Listar backups de repositorios
+              ansible.builtin.find:
+                paths: /etc/zypp/repos.d
+                patterns: "*.bak.*"
+              register: backup_repos
+
+            - name: Restaurar repositorios originales
+              ansible.builtin.copy:
+                src: "{{ item.path }}"
+                dest: "{{ item.path | regex_replace('\\.bak$', '') }}"
+                remote_src: true
+                mode: "0644"
+              loop: "{{ backup_repos.files }}"
+          rescue:
+            - name: Registrar error de restauración
+              ansible.builtin.set_fact:
+                patch_error: "{{ patch_error | combine({'restore':
+                  {'error': ansible_failed_result.msg,
+                  'type': 'RESTORE_ERROR'}}) }}"
+      rescue:
+        - name: Registrar error del BLOQUE parchado
+          ansible.builtin.set_fact:
+            patch_error: "{{ patch_error | combine({
+              'patch_block': {
+                'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+                  | default('Error en bloque de parchado') | regex_replace('\n', ' '),
+                'type': 'PATCH_BLOCK_ERROR',
+                'details': {
+                  'task_name': ansible_failed_result.task_name | default('unknown'),
+                  'module_name': ansible_failed_result.module_name | default('unknown'),
+                  'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+                  'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' '),
+                  'module_args': ansible_failed_result.module_args | default({}) | to_json
+                }
+              }}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_suse.j2
+        dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Registrar error general del proceso de parchado
+      ansible.builtin.set_fact:
+        patch_error: "{{ patch_error | default({}) | combine({
+          'general_error': {
+            'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+              | default('Error General en el Proceso de Parchado') | regex_replace('\n', ' '),
+            'type': 'GENERAL_ERROR',
+            'module': ansible_failed_result.module_name | default('unknown'),
+            'host': inventory_hostname,
+            'task_args': ansible_failed_result.module_args | default({}) | to_json
+          }}) }}"
+
+    - name: Crear JSON de resultados - error general del proceso de parchado
+      ansible.builtin.template:
+        src: report_family_suse.j2
+        dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

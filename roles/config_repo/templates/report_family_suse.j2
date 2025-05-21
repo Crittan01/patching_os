@@ -1,0 +1,34 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {{ previous_results.snapshot | to_json }},
+  "repo_config": {
+    "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
+      ('OK' if (repo_states | default([]) | selectattr('status', 'equalto', 200) | list | length > 0 and not repo_error) else 'FAILED') }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+      (repo_states | default([]) | selectattr('status', 'equalto', 200) | list | length > 0) and not repo_error) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "os_type": "{{ ansible_distribution }}",
+    "repositories": {{ repo_states | default([]) | to_json }},
+    "original_repos": {
+      "total": {{ existing_repos.files | default([]) | length }},
+      "backup_timestamp": "{{ ansible_date_time.iso8601_basic }}",
+      "details": [
+        {% for repo in repo_contents.results | default([]) %}
+        {
+          "file": "{{ repo.source.split('/')[-1] }}",
+          "content": {{ repo.content | b64decode | to_json }}
+        }{{ '' if loop.last else ',' }}
+        {% endfor %}
+      ]
+    },
+    "create_repos": {{ repos_creados | default([]) | to_json }},
+    "os_details": {
+      "distribution": "{{ ansible_distribution }}",
+      "major_version": "{{ ansible_distribution_major_version }}",
+      "release": "{{ ansible_distribution_release }}",
+      "service_pack": "{{ ansible_distribution_version }}"
+    },
+    "errors": {{ repo_error | to_json }},
+    "skipped_reason": "{{ 'Pre-validación falló' if not previous_results.pre_validation.can_continue else '' }}"
+  }
+}

@@ -1,0 +1,4 @@
+---
+# defaults file for roles/parchado
+parchado_log_dir: "/var/log/ansible_patches"
+parchado_dir_reporte: c:\temp\report_update_ansible\

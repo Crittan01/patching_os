@@ -1,0 +1,27 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {
+    "status": "FAILED",
+    "can_continue": false,
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "virtualization_details": {
+      "type": "{{ ansible_virtualization_type | default('N/A') }}",
+      "role": "{{ ansible_virtualization_role | default('N/A')}}",
+      "vendor": "{{ ansible_system_vendor | default('N/A')}}",
+      "vcenter": "{{ vcenter_vmware | default('N/A')}}",
+      "datacenter": "{{ datacenter_vmware | default('N/A')}}",
+      "vm_name": "{{ vm_name | default('N/A')}}",
+      "tipo_vmware": "{{ tipo_vmware | default('N/A') }}"
+    },
+    "details": {
+      "reason": "Variables requeridas con valor null",
+      "null_vars": {
+        "tipo_vmware": {{ (tipo_vmware == 'null') | lower }},
+        "vm_name": {{ (vm_name == 'null') | lower }},
+        "vcenter_vmware": {{ (vcenter_vmware == 'null') | lower }},
+        "datacenter_vmware": {{ (datacenter_vmware == 'null') | lower }}
+      }
+    },
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue | default('Desconocido') else '' }}"
+  }
+}

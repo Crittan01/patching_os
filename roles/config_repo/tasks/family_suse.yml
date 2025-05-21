@@ -1,0 +1,275 @@
+---
+# tasks file for roles/config_repo
+- name: Validar estado previo y ejecutar configuracion
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        repo_states: []
+        repos_creados: []
+        existing_repos: { "files": [] }
+        repo_contents: { "results": [] }
+        repo_error: {}
+
+    - name: BLOQUE verificar Repositorio
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+      block:
+        - name: Determinar Service Pack
+          ansible.builtin.set_fact:
+            sp_version: "{{ 'sp' + ansible_distribution_release if ansible_distribution_release != '0' else 'sp0' }}"
+
+        - name: Validar acceso al servidor de repositorios
+          block:
+            - name: Agregar entrada a /etc/hosts
+              ansible.builtin.lineinfile:
+                path: /etc/hosts
+                line: "{{ config_repo_ip_repo }} {{ config_repo_servidor_repo }}"
+                state: present
+
+            - name: Verificar conectividad con servidor de repos
+              ansible.builtin.wait_for:
+                host: "{{ config_repo_servidor_repo }}"
+                port: 443
+                timeout: 10
+              register: repo_connectivity
+          rescue:
+            - name: Registrar error de conectividad
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'connectivity': {
+                  'error': ansible_failed_result.msg | default('Error en Conectividad') | regex_replace('\n', ' '),
+                  'type': 'CONNECTIVITY_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        - name: Gestión de repos existentes
+          block:
+            - name: Desactivar SUSEConnect
+              ansible.builtin.shell: |
+                set -o pipefail
+                SUSEConnect --cleanup
+              changed_when: true
+              failed_when: false
+              register: disable_suseconnect
+
+            - name: Listar Repositorios (Antes de Configuracion)
+              ansible.builtin.command:
+                cmd: zypper lr
+              register: zypper_lr_antes
+              changed_when: false
+
+            - name: DEBUG - Listar Repositorios (Antes de Configuracion)
+              ansible.builtin.debug:
+                var: zypper_lr_antes.stdout_lines
+
+            - name: Listar repositorios existentes
+              ansible.builtin.find:
+                paths: /etc/zypp/repos.d
+                patterns: "*.repo"
+                excludes: "local-*"
+              register: existing_repos
+
+            - name: Leer contenido de repositorios existentes
+              ansible.builtin.slurp:
+                src: "{{ item.path }}"
+              register: repo_contents
+              loop: "{{ existing_repos.files }}"
+
+            - name: Crear backup de repositorios existentes
+              ansible.builtin.copy:
+                src: "{{ item.path }}"
+                dest: "{{ item.path }}.bak"
+                remote_src: true
+                mode: "0644"
+                backup: true
+              loop: "{{ existing_repos.files }}"
+
+            - name: Desactivar todos los repositorios anteriores
+              ansible.builtin.shell: |
+                set -o pipefail
+                zypper mr -da
+              changed_when: true
+              register: disable_all_repos
+
+            - name: Activar todos los repositorios local
+              ansible.builtin.shell: |
+                set -o pipefail
+                zypper mr -e 'local*'
+              changed_when: true
+              failed_when: false
+              register: disable_all_repos
+
+#            - name: Obtener lista de repositorios a deshabilitar
+#              ansible.builtin.shell: |
+#                set -o pipefail
+#                "zypper lr | awk '!/^#/{if ($2 !~ /^local/) print $1}'"
+#              register: repos_a_deshabilitar
+#              changed_when: false
+#
+#            - name: Deshabilitar los repositorios filtrados
+#              ansible.builtin.command:
+#                cmd: "zypper mr -d {{ item }}"
+#              loop: "{{ repos_a_deshabilitar.stdout_lines }}"
+#              changed_when: true
+
+            - name: Realizar limpieza 1
+              ansible.builtin.shell: |
+                set -o pipefail
+                zypper clean --all
+              changed_when: true
+              register: clean_all_repos_1
+
+            - name: Realizar limpieza 2
+              ansible.builtin.shell: |
+                set -o pipefail
+                zypper refresh
+              changed_when: true
+              failed_when: false
+              register: clean_all_repos_2
+          rescue:
+            - name: Registrar error de backup
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'backup': {
+                  'error': ansible_failed_result.msg | default('Error en Backup') | regex_replace('\n', ' '),
+                  'type': 'BACKUP_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+        - name: Configuración de nuevos repos
+          block:
+            - name: Obtener URLs de repositorios
+              ansible.builtin.set_fact:
+                repos_urls: "{{ config_repo_repos_config[ansible_distribution][ansible_distribution_major_version][ansible_distribution_release] }}"
+              register: repo_urls_result
+
+            - name: Verificar obtención de URLs
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({'urls':
+                  {'error': 'No se encontraron URLs para la versión del sistema operativo', 'type': 'URL_ERROR', 'os_info':
+                  {'distribution': ansible_distribution, 'version': ansible_distribution_major_version, 'release': ansible_distribution_release}}}) }}"
+              when: repos_urls is not defined
+
+            - name: Verificar cada repositorio
+              ansible.builtin.uri:
+                url: "{{ item.url }}/repodata/repomd.xml"
+                status_code: [200, 404]
+                validate_certs: false
+                timeout: 60
+              register: repo_check
+              loop: "{{ repos_urls }}"
+              loop_control:
+                label: "{{ item.name }}"
+              retries: 3
+              delay: 5
+
+            - name: Actualizar estados de repos
+              ansible.builtin.set_fact:
+                repo_states: "{{ repo_states + [{'name': item.item.name,
+                  'url': item.item.url,
+                  'status': item.status,
+                  'priority': item.item.priority}] }}"
+              loop: "{{ repo_check.results }}"
+
+            - name: Añadir repositorios locales
+              community.general.zypper_repository:
+                name: "local-{{ ansible_distribution | lower }}{{ ansible_distribution_major_version }}-{{ ansible_distribution_release }}-{{ item.name }}"
+                repo: "{{ item.url }}?ssl_verify=no"
+                auto_import_keys: true
+                disable_gpg_check: true
+                refresh: true
+                priority: "{{ item.priority }}"
+                state: present
+                enabled: true
+                description: "local-{{ ansible_distribution | lower }}{{ ansible_distribution_major_version }}-{{ ansible_distribution_release }}-{{ item.name }}"
+              register: repo_add_result
+              loop: "{{ repo_states }}"
+              when: item.status == 200
+
+#            - name: Cambiar tipo de repositorio a yast2 para SUSE 11
+#              ansible.builtin.replace:
+#                path: >-
+#                  "/etc/zypp/repos.d/
+#                  local-{{ ansible_distribution | lower }}{{ ansible_distribution_major_version }}-{{ ansible_distribution_release }}-{{ item.name }}.repo"
+#                regexp: "type=rpm-md"
+#                replace: "type=yast2"
+#              loop: "{{ repo_states }}"
+#              when:
+#                - item.status == 200
+#                - ansible_distribution_major_version == '11'
+
+            - name: Capturar nombres de repos locales desde repo_add_result
+              ansible.builtin.set_fact:
+                repos_creados: "{{ repo_add_result.results |
+                  selectattr('repodata', 'defined') |
+                  map(attribute='repodata') |
+                  map(attribute='alias') |
+                  list }}"
+
+            - name: DEBUG - Capturar nombres de repos locales desde repo_add_result
+              ansible.builtin.debug:
+                msg:
+                  - "Repos Creados: {{ repos_creados }}"
+          rescue:
+            - name: Registrar error de configuración
+              ansible.builtin.set_fact:
+                repo_error: "{{ repo_error | combine({
+                  'config': {
+                  'error': ansible_failed_result.msg | default('Error en Configuracion Repo') | regex_replace('\n', ' '),
+                  'type': 'CONFIG_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+      rescue:
+        - name: Registrar error del BLOQUE verificar Repositorio
+          ansible.builtin.set_fact:
+            repo_error: "{{ repo_error | combine({
+              'patch_block': {
+              'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+              | default('Error en bloque de verificar Repositorio') | regex_replace('\n', ' '),
+              'type': 'VERIFY_REPO_BLOCK_ERROR',
+              'details': {
+              'task_name': ansible_failed_result.task_name | default('unknown'),
+              'module_name': ansible_failed_result.module_name | default('unknown'),
+              'stderr': ansible_failed_result.stderr | default('') | regex_replace('\n', ' '),
+              'stdout': ansible_failed_result.stdout | default('') | regex_replace('\n', ' '),
+              'module_args': ansible_failed_result.module_args | default({}) | to_json
+              }
+              }}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_suse.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  rescue:
+    - name: Registrar error general del proceso de configuracion
+      ansible.builtin.set_fact:
+        patch_error: "{{ patch_error | default({}) | combine({
+          'general_error': {
+          'error': ansible_failed_result.module_stderr | default(ansible_failed_result.msg)
+          | default('Error General en el Proceso de configuracion') | regex_replace('\n', ' '),
+          'type': 'GENERAL_ERROR',
+          'module': ansible_failed_result.module_name | default('unknown'),
+          'host': inventory_hostname,
+          'task_args': ansible_failed_result.module_args | default({}) | to_json
+          }}) }}"
+
+    - name: Crear JSON de resultados - error general del proceso de configuracion
+      ansible.builtin.template:
+        src: report_family_rhel.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

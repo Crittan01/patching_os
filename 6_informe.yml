@@ -1,0 +1,157 @@
+---
+- name: Generacion de Informe
+  hosts: "{{ lote | default([]) }}"
+  gather_facts: false
+  serial: "{{ serial | default(1) }}"
+  vars_files:
+    - vars/global.yml
+
+  vars:
+    log_dir: "/var/log/ansible_patches"
+
+  pre_tasks:
+    - name: Leer resultados finales
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.slurp:
+        src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
+      register: final_results_file
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+    - name: Decodificar JSON final
+      when:
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      ansible.builtin.set_fact:
+        results: "{{ final_results_file['content'] | b64decode | from_json }}"
+
+    - name: Recolectar FACTS
+      ansible.builtin.setup:
+      ignore_unreachable: true
+      register: fact_result
+      retries: 5
+      delay: 10
+      until: not facts_result.unreachable | default(false)
+
+    # Verificar si los facts se recopilaron correctamente
+    - name: Establecer el estado de facts
+      ansible.builtin.set_fact:
+        facts_gathered: true
+      when: ansible_os_family is defined
+
+    - name: Manejar caso de facts fallidos
+      when: facts_gathered is not defined
+      block:
+        - name: Registrar error de recolección de facts
+          ansible.builtin.set_fact:
+            fact_error: {
+              "error": "No se pudo establecer conexion con el servidor",
+              "type": "CONNECT_FAILED"
+            }
+
+        - name: Preparar contenido del informe
+          ansible.builtin.set_fact:
+            informe_content: |
+              ================================================================
+              INFORME DE PARCHADO - CRQ {{ crq_input | upper }}
+              ================================================================
+              INFORMACIÓN GENERAL
+              ------------------
+              Servidor: {{ inventory_hostname }}
+              IP: {{ ip | default(ansible_host) }}
+              Lote: {{ lote | default('N/A') }}
+              Fecha de inicio de ejecucion: No recuperable
+              Fecha de fin de ejecucion:    No recuperable
+
+              1. VALIDACIÓN PREVIA
+              -------------------
+              Estado: {{ results.pre_validation.status }}
+
+              2. SNAPSHOT PRE-PARCHADO
+              -------------------------
+              Estado: {{ results.snapshot.status }}
+
+              3. CONFIGURACIÓN DE REPOSITORIOS FOREMAN
+              ------------------------------
+              Estado: {{ results.repo_config.status }}
+
+              4. PROCESO DE PARCHADO
+              --------------------
+              Estado: {{ results.patching.status }}
+
+              5. VALIDACIÓN POST-PARCHADO
+              -------------------------
+              Estado: {{ results.final_results.status }}
+
+              6. RESUMEN FINAL
+              --------------
+              Estado General: {{ 'COMPLETADO EXITOSO' if (results.pre_validation.can_continue and
+                                                results.snapshot.can_continue and
+                                                results.repo_config.can_continue and
+                                                results.patching.can_continue and
+                                                results.post_validation.can_continue)
+                                            else 'FALLIDO' }}
+              Razon: {{ results.final_results.error.error }}
+
+              ================================================================
+
+        - name: Generar informe
+          ansible.builtin.copy:
+            content: "{{ informe_content }}"
+            dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/informe_{{ crq_input }}_{{ inventory_hostname }}.txt"
+            owner: "{{ owner }}"
+            group: "{{ group }}"
+            mode: "0755"
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
+
+        - name: Mostrar informe en consola
+          ansible.builtin.debug:
+            msg: "{{ informe_content.split('\n') }}"
+  tasks:
+    - name: Generacion de Informe para SLES
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'Suse'
+        - ansible_architecture == 'x86_64'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Generacion de Informe de Maquinas Familia 'Suse'
+          ansible.builtin.include_role:
+            name: informe
+            tasks_from: family_suse.yml
+
+    - name: Generacion de Informe para RHEL
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'RedHat'
+        - ansible_architecture == 'x86_64'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Generacion de Informe de Maquinas Familia 'RedHat'
+          ansible.builtin.include_role:
+            name: informe
+            tasks_from: family_rhel.yml
+
+    - name: Generacion de Informe para Windows
+      when:
+        - facts_gathered is defined
+        - ansible_os_family == 'Windows'
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+      block:
+        - name: Generacion de Informe de Maquinas Familia 'Windows'
+          ansible.builtin.include_role:
+            name: informe
+            tasks_from: family_windows.yml

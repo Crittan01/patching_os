@@ -1,0 +1,3 @@
+---
+# defaults file for roles/snapshot
+snapshot_log_dir: "/var/log/ansible_patches"

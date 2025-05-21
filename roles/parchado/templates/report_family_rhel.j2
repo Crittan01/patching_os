@@ -1,0 +1,50 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {{ previous_results.snapshot | to_json }},
+  "repo_config": {{ previous_results.repo_config | to_json }},
+  "patching": {
+    "status": "{{ 'OK' if (previous_results.pre_validation.can_continue and 
+                          previous_results.repo_config.can_continue and 
+                          patch_error.keys() | length == 0) else
+                  'SKIPPED' if (not previous_results.pre_validation.can_continue or 
+                              not previous_results.repo_config.can_continue) else 
+                  'FAILED' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+                       previous_results.repo_config.can_continue and 
+                       patch_error.keys() | length == 0) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "errors": {{ patch_error | default({}) | to_json }},
+    "update_details": {
+      "categories_selected": {{ paquetes_objetivo | default([]) | to_json }},
+      "update_status": {{ update_result.update_status | default('Error') if patch_error.keys() | length > 0 else update_result.update_status | default('No Updates Available') | to_json }},
+      "changed": {{ (yum_update.changed | default(false) or dnf_update.changed | default(false)) | bool | lower }},
+      "transaction_id": "{{ transaction_info.stdout | default('Error en transacción') if patch_error.keys() | length > 0 else 
+                          (transaction_info.stdout | default('No transacción') if (dnf_update.changed | default(false) or yum_update.changed | default(false)) else 
+                          'No ID (Sin actualizaciones)') }}",
+      "package_manager": "{{ ansible_pkg_mgr }}"
+    },
+    "package_changes": {
+      "total_antes": {{ paquetes_antes.stdout_lines | default([]) | length }},
+      "total_despues": {{ paquetes_despues.stdout_lines | default([]) | length }},
+      "estado": {{ paquetes_info.estado_actualizacion | default('Error') if patch_error.keys() | length > 0 else paquetes_info.estado_actualizacion | default('NO_CHANGES') | to_json }},
+      "nuevos": {% if paquetes_info.nuevos | default([]) | length > 0 %}
+        {{ paquetes_info.nuevos | to_json }}
+      {% else %}
+        []
+      {% endif %},
+      "eliminados": {% if paquetes_info.eliminados | default([]) | length > 0 %}
+        {{ paquetes_info.eliminados | to_json }}
+      {% else %}
+        []
+      {% endif %},
+      "actualizados": {
+        "total": {{ paquetes_info.actualizados | default([]) | length }},
+        "detalles": {{ paquetes_info.actualizados | default([]) | to_json }}
+      }
+    },
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
+                         'Repository configuration failed' if not previous_results.repo_config.can_continue else 
+                         patch_error.pre_patch.error if patch_error.pre_patch is defined else
+                         patch_error.patching.error if patch_error.patching is defined else '' }}"
+  }
+}

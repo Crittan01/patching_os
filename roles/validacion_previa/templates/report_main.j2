@@ -1,0 +1,36 @@
+{
+"pre_validation": {
+    "status": "{{ 'OK' if todos_cumplen and validation_error|default({})|length == 0 else 'FAILED' }}",
+    "can_continue": {{ (todos_cumplen and validation_error|default({})|length == 0) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "filesystem_details": {
+        "separated_fs": {
+            "boot": {{ boot_separado | lower }},
+            "usr": {{ usr_separado | lower }},
+            "tmp": {{ tmp_separado | lower }},
+            "var": {{ var_separado | lower }}
+        },
+        "space_requirements": {{ espacio_minimo | to_json }},
+        "filesystem_status": {{ fs_intermedio | to_json }},
+        "all_requirements_met": {{ todos_cumplen | lower }}
+    },
+    "services_initial": {
+        "total": {{ ansible_facts.services | default({}) | length }},
+        "active": {{ active_services_initial | default([]) | length }},
+        "active_list": {{ active_services_initial | default([]) | to_json }}
+    },
+    "validation_errors": {{ validation_error | default({}) | to_json }},
+    "failed_filesystems": [
+    {% set ns = namespace(first=true) %}
+    {% for mount, data in fs_intermedio.items() if not data.cumple %}
+        {% if not ns.first %},{% endif %}
+        {% set ns.first = false %}
+        {
+        "mount": "{{ mount }}",
+        "required_mb": {{ data.requerido }},
+        "available_mb": {{ data.disponible }}
+        }
+    {% endfor %}
+    ]
+}
+}

@@ -1,0 +1,103 @@
+---
+- name: Bloque de eliminación de snapshot
+  block:
+    - name: Verificar existencia de snapshots
+      ansible.builtin.raw: |
+        vim-cmd vmsvc/snapshot.get "{{ item.snapshot.snapshot_details.vmid }}"
+      register: snapshot_check
+      retries: 5
+      delay: 30
+      until: snapshot_check is success
+      changed_when: false
+      delegate_to: "{{ item.snapshot.virtualization_details.vcenter }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "IACOLCOAUTO"
+        ansible_password: "{{ esxi_cred }}"
+        ansible_python_interpreter: /bin/sh
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+        ansible_ssh_timeout: 30
+#        ansible_connection: ssh
+#        ansible_user: "{{ esxi_credentials[item.snapshot.virtualization_details.vcenter]['username'] }}"
+#        ansible_password: "{{ esxi_credentials[item.snapshot.virtualization_details.vcenter]['password'] }}"
+#        ansible_python_interpreter: /bin/sh
+      failed_when: false
+
+    - name: Verificar si existe el snapshot específico
+      ansible.builtin.set_fact:
+        snapshot_exists: "{{ snapshot_check.stdout is search(item.snapshot.snapshot_details.name) }}"
+
+    - name: Capturar Fecha del CSV
+      ansible.builtin.set_fact:
+        fecha_crq: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}-{{ ansible_date_time.minute }}-{{ ansible_date_time.second }}"
+
+    - name: Ejecutar eliminacion snapshot Standalone
+      when: snapshot_exists | bool
+      ansible.builtin.raw: |
+        vim-cmd vmsvc/snapshot.remove "{{ item.snapshot.snapshot_details.vmid }}" "{{ item.snapshot.snapshot_details.snapshot_id }}"
+      register: standalone_result
+      retries: 5
+      delay: 30
+      until: standalone_result is success
+      changed_when: standalone_result
+      delegate_to: "{{ item.snapshot.virtualization_details.vcenter }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "IACOLCOAUTO"
+        ansible_password: "{{ esxi_cred }}"
+        ansible_python_interpreter: /bin/sh
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+        ansible_ssh_timeout: 30
+#        ansible_connection: ssh
+#        ansible_user: "{{ esxi_credentials[item.snapshot.virtualization_details.vcenter]['username'] }}"
+#        ansible_password: "{{ esxi_credentials[item.snapshot.virtualization_details.vcenter]['password'] }}"
+#        ansible_python_interpreter: /bin/sh
+
+    - name: Debug - Ejecutar eliminacion snapshot Standalone
+      ansible.builtin.debug:
+        var: standalone_result
+
+    - name: Guardar información eliminada para el handler
+      ansible.builtin.set_fact:
+        deleted_snapshot_info: "{{ item }}"
+
+    - name: Registrar éxito - Ejecutar eliminacion snapshot Standalone
+      ansible.builtin.set_fact:
+        deletion_results: >-
+          {{ deletion_results + [{
+            'vm': item.snapshot.virtualization_details.vm_name,
+            'tipo': 'standalone',
+            'status': 'OK',
+            'details': standalone_result.stdout | default('')
+          }] }}
+  rescue:
+    - name: Registrar error - Ejecutar eliminacion snapshot Standalone
+      ansible.builtin.set_fact:
+        deletion_results: >-
+          {{ deletion_results + [{
+            'vm': item.snapshot.virtualization_details.vm_name | default('unknown'),
+            'tipo': 'standalone',
+            'status': 'FAILED',
+            'error': ansible_failed_result.msg | default('Error en proceso de eliminar de snapshot Standalone') | regex_replace('\n', ' ')
+          }] }}
+
+- name: Escribir Columnas del CSV - eliminacion snapshot Standalone
+  ansible.builtin.lineinfile:
+    insertafter: EOF
+    dest: "{{ crq_dir }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+    line: >-
+      {{ crq_input | upper }},
+      {{- fecha_crq }},
+      {{- item.snapshot.virtualization_details.vcenter }},
+      {{- esxi_credentials[item.snapshot.virtualization_details.vcenter]['username'] }},
+      {{- item.snapshot.virtualization_details.datacenter }},
+      {{- item.snapshot.virtualization_details.vm_name }},
+      {{- item.snapshot.snapshot_details.name }},
+      {{- item.snapshot.snapshot_details.vmid }},
+      {{- item.snapshot.snapshot_details.snapshot_id }}
+  delegate_to: "{{ server_informes }}"
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ owner }}"
+    ansible_password: "{{ ansible_pwd }}"
+  when: standalone_result.changed # noqa: no-handler

@@ -1,0 +1,32 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {{ previous_results.snapshot | to_json }},
+  "repo_config": {
+    "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
+                  repo_status | default('FAILED') }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+                       repo_can_continue | default(false)) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "create_repos": {{ repos_accesibles | default([]) | map('regex_replace', '(/.*$)', '') | list | to_json }},
+    "repo_details": {
+      "package_manager": "{{ repo_manager | default('unknown') }}",
+      "os_type": "{{ ansible_distribution }} {{ ansible_distribution_version }}",
+      "detected_repos": {
+        "enabled_count": {{ repos_habilitados | default([]) | length }},
+        "accessible_count": {{ repos_accesibles | default([]) | length }},
+        "inaccessible_count": {{ repos_inaccesibles | default([]) | length }},
+        "enabled_repos": {{ repos_habilitados | default([]) | to_json }},
+        "accessible_repos": {{ repos_accesibles | default([]) | to_json }},
+        "inaccessible_repos": {{ repos_inaccesibles | default([]) | to_json }}
+      }
+    },
+    "os_details": {
+      "distribution": "{{ ansible_distribution }}",
+      "distribution_major_version": "{{ ansible_distribution_major_version }}",
+      "distribution_version": "{{ ansible_distribution_version }}",
+      "distribution_release": "{{ ansible_distribution_release | default('NA') }}"
+    },
+    "errors": {{ repo_error | default({}) | to_json }},
+    "skipped_reason": "{{ 'Pre-validación fallida' if not previous_results.pre_validation.can_continue else '' }}"
+  }
+}

@@ -1,0 +1,52 @@
+---
+# tasks file for roles/config_repo
+- name: Validacion estado previo y validar configuracion
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        wsus_status: {}
+        repo_error: {}
+        wsus_config: { "exists": false, "value": "No disponible" }
+
+    - name: BLOQUE verificar WSUS
+      when:
+        - previous_results.pre_validation.can_continue
+        - previous_results.snapshot.can_continue
+      block:
+        - name: Obtener configuracion de WSUS
+          ansible.windows.win_reg_stat:
+            path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate
+            name: WUServer
+          register: wsus_config
+          failed_when: false
+
+        - name: DEBUG - Estado completo de WSUS
+          ansible.builtin.debug:
+            msg:
+              - "Existe la ruta: {{ wsus_config.exists | default(false) }}"
+              - "Valor: {{ wsus_config.value | default('No configurado') }}"
+              - "Tipo: {{ wsus_config.type | default('N/A') }}"
+              - "Registro completo: {{ wsus_config }}"
+      rescue:
+        - name: Registrar error de conectividad
+          ansible.builtin.set_fact:
+            repo_error:
+              "{{ repo_error | combine({
+                'connectivity': {
+                  'error': ansible_failed_result.msg | default('Error en Conectividad') | regex_replace('\n', ' '),
+                  'type': 'CONNECTIVITY_ERROR',
+                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_windows.j2
+        dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

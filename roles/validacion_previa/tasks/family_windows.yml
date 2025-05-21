@@ -1,0 +1,136 @@
+---
+# tasks file for roles/validacion_previa
+- name: Validacion y Estado Inicial
+  block:
+    # Inicializacion de Variables
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        validation_error: {}
+        umbral: 20
+        unidad: "C"
+        reboot_status: {
+          "initial_pending": false,
+          "reboot_executed": false,
+          "reboot_details": {}
+        }
+        space_status: {
+          "checked": false,
+          "meets_requirements": false
+        }
+        service_status: {
+          "checked": false,
+          "services_counted": false
+        }
+        validation_blocks: {
+          "reboot": {"executed": false, "success": false},
+          "space": {"executed": false, "success": false},
+          "services": {"executed": false, "success": false}
+        }
+
+    # Validación de reinicio pendiente
+    - name: Verificar estado de reinicio
+      block:
+        - name: Verificar reinicio pendiente
+          ansible.builtin.debug:
+            var: ansible_reboot_pending
+
+        - name: Ejecutar reinicio si está pendiente
+          ansible.windows.win_reboot:
+            pre_reboot_delay: 60 # 1 minuto de espera antes del reinicio
+            post_reboot_delay: 120 # 2 minutos de espera después del reinicio
+            reboot_timeout: 1200 # 20 minutos máximo para el reinicio
+            msg: "Reinicio requerido antes del parchado"
+          when: ansible_reboot_pending
+          register: reboot_result
+
+        - name: Debug - Ejecutar reinicio si está pendiente
+          ansible.builtin.debug:
+            var: reboot_result
+      rescue:
+        - name: Registrar Error de reinicio
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine({
+              'reboot_ckeck': {
+                'error': ansible_failed_result.msg | default('Error verificando estado de reinicio') | regex_replace('\n', ' '),
+                'type': 'REBOOT_CHECK_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    # Validacion de Espacio
+    - name: Validar espacio en Disco
+      block:
+        - name: Obtener Información de Discos
+          community.windows.win_disk_facts:
+
+        - name: Encontrar Partición de la Unidad {{ unidad }}
+          ansible.builtin.set_fact:
+            particion_c: "{{ ansible_facts.disks
+              | selectattr('partitions', 'defined')
+              | map(attribute='partitions')
+              | flatten
+              | selectattr('drive_letter', 'equalto', unidad)
+              | first }}"
+          when: ansible_facts.disks is defined
+
+        - name: Calcular espacio Libre en unidad {{ unidad }}
+          ansible.builtin.set_fact:
+            espacio_libre_gb: "{{ ((particion_c.volumes[0].size_remaining | int) / (1024**3)) | round(2) }}"
+            espacio_total_gb: "{{ ((particion_c.size | int) / (1024**3)) | round(2) }}"
+          when: particion_c is defined
+
+        - name: Validar espacio disponible en el Disco {{ unidad }}
+          ansible.builtin.set_fact:
+            todos_cumplen: "{{ espacio_libre_gb | int >= umbral | float }}"
+            space_status: {
+              "checked": true,
+              "meets_requirements": "{{ espacio_libre_gb | int >= umbral | float }}"
+            }
+      rescue:
+        - name: Registrar Error de reinicio
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine({
+              'space_ckeck': {
+                'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
+                'type': 'SPACE_CHECK_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    # Validación de servicios inicial
+    - name: Validar Servicios
+      block:
+        - name: Obtener listado de Servicios Windows (started)
+          ansible.windows.win_service_info:
+          register: services_info
+
+        - name: Crear lista de servicios a monitorear
+          ansible.builtin.set_fact:
+            active_services_initial: "{{ services_info.services |
+              selectattr('start_mode', 'ne', 'auto') |
+              selectattr('state', 'equalto', 'started') |
+              map(attribute='name') |
+              list }}"
+            service_status: {
+              "checked": true,
+              "services_counted": true
+            }
+      rescue:
+        - name: Registrar error de validación de servicios
+          ansible.builtin.set_fact:
+            validation_error: "{{ validation_error | combine({
+              'service_check': {
+                'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
+                'type': 'SERVICE_CHECK_ERROR',
+                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_family_windows.j2
+        dest: "{{ validacion_previa_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ ansible_pwd }}"
+        ansible_python_interpreter: /usr/bin/python3
+        # ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
