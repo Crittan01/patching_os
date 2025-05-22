@@ -62,7 +62,7 @@
       {% endif %}
       {% endif %}
 
-      3. CONFIGURACION DE REPOSITORIO FOREMAN
+      3. CONFIGURACION DE REPOSITORIO
       -----------------------------
       Estado: {{ results.repo_config.status }}
       {% if results.repo_config.skipped_reason is defined and results.repo_config.skipped_reason %}
@@ -90,6 +90,17 @@
         URL: {{ repo.url }}
         Estado: {{ repo.status }}
         Prioridad: {{ repo.priority }}
+      {% endfor %}
+      {% endif %}
+      {% if results.repo_config is defined %}
+      Resumen de Repositorios:
+      - Total Repositorios Habilitados: {{ results.repo_config.repo_details.detected_repos.enabled_count }}
+      - Repositorios Accesibles: {{ results.repo_config.repo_details.detected_repos.accessible_count }}
+      - Repositorios Inaccesibles: {{ results.repo_config.repo_details.detected_repos.inaccessible_count }}
+
+      Repositorios Utilizados para Parchado:
+      {% for repo in results.repo_config.create_repos %}
+      - {{ repo }}
       {% endfor %}
       {% endif %}
 

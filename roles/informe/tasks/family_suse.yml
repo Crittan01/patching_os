@@ -68,7 +68,7 @@
       {% endif %}
       {% endif %}
 
-      3. CONFIGURACIÓN DE REPOSITORIOS FOREMAN
+      3. CONFIGURACIÓN DE REPOSITORIOS
       ------------------------------
       Estado: {{ results.repo_config.status }}
       {% if results.repo_config.status == 'SKIPPED' %}

@@ -16,6 +16,35 @@
     ansible_user: "{{ owner }}"
     ansible_password: "{{ ansible_pwd }}"
 
+# FOREMAN
+# - name: Escribir Columnas del CSV
+#   ansible.builtin.lineinfile:
+#     insertafter: EOF
+#     dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
+#     line: >-
+#       {{ crq_input | upper }},
+#       {{- lote | default('N/A') }},
+#       {{- inventory_hostname }},
+#       {{- ip | default(ansible_host) }},
+#       {{- ansible_distribution }} {{ ansible_distribution_version }},
+#       {{- results.post_validation.timestamp }},
+#       {{- results.repo_config.repositories | map(attribute='name') | default('No repos') | join('|') }},
+#       {{- results.patching.package_changes.actualizados.total | default(0) }},
+#       {{- results.patching.package_changes.eliminados | default('No eliminados') | join('|') }},
+#       {{- results.patching.package_changes.nuevos | default('No nuevos') | join('|') }},
+#       {{- 'Validacion Previa' if not results.pre_validation.can_continue else
+#           'Proceso Snapshot' if not results.snapshot.can_continue else
+#           'Configuracion de Repositorio' if not results.repo_config.can_continue else
+#           'Proceso de Parchado' if not results.patching.can_continue else
+#           'Validacion Post-Parchado' if not results.post_validation.can_continue else
+#           'Ninguno' }},
+#       {{- results.post_validation.status | default('No status') }}
+#   delegate_to: "{{ server_informes }}"
+#   vars:
+#     ansible_connection: ssh
+#     ansible_user: "{{ owner }}"
+#     ansible_password: "{{ ansible_pwd }}"
+
 - name: Escribir Columnas del CSV
   ansible.builtin.lineinfile:
     insertafter: EOF
@@ -27,13 +56,13 @@
       {{- ip | default(ansible_host) }},
       {{- ansible_distribution }} {{ ansible_distribution_version }},
       {{- results.post_validation.timestamp }},
-      {{- results.repo_config.repositories | map(attribute='name') | default('No repos') | join('|') }},
+      {{- results.repo_config.create_repos | default(['No repos']) | join('|') }},
       {{- results.patching.package_changes.actualizados.total | default(0) }},
-      {{- results.patching.package_changes.eliminados | default('No eliminados') | join('|') }},
-      {{- results.patching.package_changes.nuevos | default('No nuevos') | join('|') }},
+      {{- results.patching.package_changes.eliminados | default(['No eliminados']) | join('|') }},
+      {{- results.patching.package_changes.nuevos | default(['No nuevos']) | join('|') }},
       {{- 'Validacion Previa' if not results.pre_validation.can_continue else
           'Proceso Snapshot' if not results.snapshot.can_continue else
-          'Configuracion de Repositorio' if not results.repo_config.can_continue else
+          'Validacion de Repositorio' if not results.repo_config.can_continue else
           'Proceso de Parchado' if not results.patching.can_continue else
           'Validacion Post-Parchado' if not results.post_validation.can_continue else
           'Ninguno' }},
