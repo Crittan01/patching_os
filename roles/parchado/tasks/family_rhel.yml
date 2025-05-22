@@ -269,8 +269,10 @@
                 ansible_password: "{{ ansible_pwd }}"
 
             - name: Comparar listas con diff
-              ansible.builtin.shell: >
-                sdiff --suppress-common-lines "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt" "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
+              ansible.builtin.command: >-
+                sdiff --suppress-common-lines
+                "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt"
+                "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
               register: diff_output
               failed_when: diff_output.rc not in [0, 1] # `sdiff` retorna 0 si no hay diferencias, 1 si hay diferencias.
               changed_when: false
