@@ -16,7 +16,7 @@ def ajustar_ancho_columnas(writer, df, sheet_name):
 def execute(logging: logging):
     load_dotenv()
     local_file_name = os.getenv('local_file_name')
-    sheets_name = ['Servidores Windows', 'Cajas POS', 'Servidores Linux GeoPos', 'Servidores Linux']
+    sheets_name = ['Servidores Windows', 'Servidores Linux']
     local_path = os.path.join(os.path.dirname(__file__), local_file_name)
     
     for sheet_name in sheets_name:

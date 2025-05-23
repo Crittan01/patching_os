@@ -97,29 +97,28 @@ def upload_to_sharepoint(local_path, remote_path):
  
 
 def download_inventory_file():
-    url = os.getenv('url_sharepoint')
-    folder_base_sharepoint = os.getenv('folder_base_sharepoint')
-    client_id = os.getenv('client_id')
-    client_secret = os.getenv('client_secret')
-    remote_file_name = os.getenv('remote_file_name')
+    # url = os.getenv('url_sharepoint')
+    # folder_base_sharepoint = os.getenv('folder_base_sharepoint')
+    # client_id = os.getenv('client_id')
+    # client_secret = os.getenv('client_secret')
+    # remote_file_name = os.getenv('remote_file_name')
     local_file_name = os.getenv('local_file_name')
     
-    logging.info(f"Descargando el inventario desde {url}")
+    # logging.info(f"Descargando el inventario desde {url}")
 
     try:
         # Autenticación
-        credentials = ClientCredential(client_id, client_secret)
-        ctx = ClientContext(url).with_credentials(credentials)
+        # credentials = ClientCredential(client_id, client_secret)
+        # ctx = ClientContext(url).with_credentials(credentials)
 
-        file_url = f'{folder_base_sharepoint}/{remote_file_name}'
+        # file_url = f'{folder_base_sharepoint}/{remote_file_name}'
         download_path = os.path.join(os.path.dirname(__file__), local_file_name)
-        if os.path.exists(download_path):
-            os.remove(download_path)
+        # if os.path.exists(download_path):
+        #     os.remove(download_path)
  
-        # Obtener el archivo desde SharePoint
-        with open(download_path, "wb") as local_file:
-            ctx.web.get_file_by_server_relative_url(file_url).download(local_file).execute_query()
-
+        # # Obtener el archivo desde SharePoint
+        # with open(download_path, "wb") as local_file:
+        #     ctx.web.get_file_by_server_relative_url(file_url).download(local_file).execute_query()
         return download_path
 
     except Exception as e:
@@ -129,6 +128,7 @@ def download_inventory_file():
 
 
 def load_inventory_data(xlsx_file_path, sheet_name: str):
+    
     logging.info(f"Cargando inventario desde {xlsx_file_path}")
     if not os.path.exists(xlsx_file_path):
         logging.error(f"Archivo {xlsx_file_path} no encontrado.")
@@ -159,7 +159,7 @@ def add_host_to_group(group_dict, group_name, hostname):
         group_dict[group_name] = {'hosts': []}
     group_dict[group_name]['hosts'].append(hostname)
 
-def build_inventory(inventory_data, so_filter_to_add):
+def build_inventory(inventory_data, so_filter_to_add):    
     excluded_hosts = []  # Lista para almacenar exclusiones
     imported_hosts = [] # Lista para almacenar los host importados
     # Estructura básica del inventario
@@ -345,19 +345,20 @@ def main():
         
         # Cargar los datos del inventario
         inventory_data = load_inventory_data(local_path, sheet_name=sheet_local_name)
+        
         ansible_inventory, os_counts, excluded_hosts, imported_hosts = build_inventory(inventory_data, so_filter_to_add)
-
+        
         # Guardar estadísticas
         total_hosts = len(inventory_data)
         processed_hosts = len(ansible_inventory['all']['hosts'])
         stats_file_path = save_stats_to_excel(total_hosts, processed_hosts, so_filter_to_add, os_counts, excluded_hosts, imported_hosts)
         
-        remote_stats_path = f'{os.getenv("folder_base_sharepoint")}/Archivos_Generados'
-        stats_remote_file = f'{remote_stats_path}/Estadisticas/'
-        log_remote_file = f'{remote_stats_path}/Logs/'
+        # remote_stats_path = f'{os.getenv("folder_base_sharepoint")}/Archivos_Generados'
+        # stats_remote_file = f'{remote_stats_path}/Estadisticas/'
+        # log_remote_file = f'{remote_stats_path}/Logs/'
         
         # Subir el archivo de estadísticas al servidor
-        upload_to_sharepoint(stats_file_path, stats_remote_file)
+        # upload_to_sharepoint(stats_file_path, stats_remote_file)
         if os.path.exists(stats_file_path):
             os.remove(stats_file_path)
 
@@ -365,7 +366,7 @@ def main():
         logging.info(f"Tiempo finalizado: {elapsed_time:.2f} segundos")
         
         # Subir el archivo de logs al servidor
-        upload_to_sharepoint(log_file, log_remote_file)
+        # upload_to_sharepoint(log_file, log_remote_file)
 
         # Imprimir el inventario en formato JSON para Ansible
         print(json.dumps(ansible_inventory, indent=4))

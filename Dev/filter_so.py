@@ -30,5 +30,8 @@ servers_supported = [
     "Windows Server 2016 Datacenter",
     "Windows Server 2019 Datacenter",
     "Windows Server 2019 Standard",
-    'Windows Server 2022 Standard'
+    'Windows Server 2022 Standard',
+    'Windows 2016 datacenter',
+    'Red Hat 8',
+    'Oracle 8'
 ]
