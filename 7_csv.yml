@@ -187,26 +187,32 @@
         var: csv_content.stdout_lines
 
     - name: Subir ZIP a SharePoint
-      ansible.builtin.script:
-        cmd: roles/out_csv/files/upload_sharepoint.py
-          --file-path "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-          --tenant-id "{{ tenant_id }}"
-          --client-id "{{ client_id }}"
-          --client-secret "{{ client_secret }}"
-          --sharepoint-url "{{ sharepoint_url }}"
-          --sharepoint-folder "{{ sharepoint_base_path }}{{ sharepoint_folder }}"
-      register: upload_result
-      retries: 5
-      delay: 20
-      until: upload_result is success
-      changed_when: "upload_result.stdout is search('\"success\": true')"
-      vars:
-        ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+      block:
+        - name: Subir ZIP a SharePoint
+          ansible.builtin.script:
+            cmd: roles/out_csv/files/upload_sharepoint.py
+              --file-path "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+              --tenant-id "{{ tenant_id }}"
+              --client-id "{{ client_id }}"
+              --client-secret "{{ client_secret }}"
+              --sharepoint-url "{{ sharepoint_url }}"
+              --sharepoint-folder "{{ sharepoint_base_path }}{{ sharepoint_folder }}"
+          register: upload_result
+          retries: 3
+          delay: 10
+          until: upload_result is success
+          changed_when: 'upload_result.stdout is search(''"success": true'')'
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ owner }}"
+            ansible_password: "{{ ansible_pwd }}"
 
-    - name: Mostrar resultado de subida
-      ansible.builtin.debug:
-        msg: "{{ upload_result.stdout | from_json }}"
-
- # https://colcomerciocom.sharepoint.com/sites/AreaInfraestructura/Documentos%20compartidos/General/Inventario%20Infraestructura/2024/Sincronizacion_Parcheado_SO
+        - name: Mostrar resultado de subida
+          ansible.builtin.debug:
+            msg: "{{ upload_result.stdout | from_json }}"
+      rescue:
+        - name: RESCUE - Subida
+          ansible.builtin.debug:
+            msg:
+              - "No se pudo subir archivo a Sharepoint, visualicelo aca:"
+              - "{{ csv_content.stdout_lines }}"
