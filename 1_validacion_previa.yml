@@ -19,6 +19,7 @@
         owner: "{{ owner }}"
         group: "{{ group }}"
         mode: "0755"
+      become: true
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
