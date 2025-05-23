@@ -245,7 +245,7 @@ def build_inventory(inventory_data, so_filter_to_add):
             }
 
     ansible_inventory['_meta']['hostvars']['ansibleawx'] = {
-        'ansible_host': '10.181.5.247'
+        'ansible_host': '10.2.0.4'
     }
     # Actualizar el inventario con los grupos
     ansible_inventory.update(stage_groups)
