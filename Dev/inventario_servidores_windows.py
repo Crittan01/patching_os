@@ -328,7 +328,7 @@ def save_stats_to_excel(total_hosts, processed_hosts, so_filter_to_add, os_count
 
     for host in imported_hosts:
         hostname = host.get("hostname")
-        ip = host.get("ip")
+        ip = host.get("ansible_host")
         crq = host.get("crq")
         lote = sanitize_group_name(host.get("lote"))
         sheet_imported_hosts.append([hostname, ip, crq, lote])
