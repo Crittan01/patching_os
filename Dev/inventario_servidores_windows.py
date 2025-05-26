@@ -220,7 +220,7 @@ def build_inventory(inventory_data, so_filter_to_add):
             'ambiente': safe_get(inventory["Ambiente"]),
             'lote': validate_lote_format(return_valid_text(inventory["Lote"])),
             'crq': safe_get(inventory["CRQ"]),
-            'ansible_host': ipv4_address,
+            'ip': ipv4_address,
             'tipo_vmware': safe_get(inventory["TIPO_VMWARE"]),
             'vcenter_vmware': safe_get(inventory["VCENTER_VMWARE"]),
             'datacenter_vmware': safe_get(inventory["DATACENTER_VMWARE"]),
@@ -328,7 +328,7 @@ def save_stats_to_excel(total_hosts, processed_hosts, so_filter_to_add, os_count
 
     for host in imported_hosts:
         hostname = host.get("hostname")
-        ip = host.get("ansible_host")
+        ip = host.get("ip")
         crq = host.get("crq")
         lote = sanitize_group_name(host.get("lote"))
         sheet_imported_hosts.append([hostname, ip, crq, lote])
