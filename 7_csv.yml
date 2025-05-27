@@ -21,8 +21,8 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
     #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
     - name: Decodificar JSON final
@@ -62,8 +62,8 @@
           run_once: true
           vars:
             ansible_connection: ssh
-            ansible_user: "{{ owner }}"
-            ansible_password: "{{ ansible_pwd }}"
+#            ansible_user: "{{ owner }}"
+#            ansible_password: "{{ ansible_pwd }}"
 
         - name: Escribir Columnas del CSV
           ansible.builtin.lineinfile:
@@ -90,8 +90,8 @@
           delegate_to: "{{ server_informes }}"
           vars:
             ansible_connection: ssh
-            ansible_user: "{{ owner }}"
-            ansible_password: "{{ ansible_pwd }}"
+#            ansible_user: "{{ owner }}"
+#            ansible_password: "{{ ansible_pwd }}"
   tasks:
     - name: Generacion de CSV para 'SLES'
       when:
@@ -150,8 +150,8 @@
       ansible.builtin.setup:
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
 
     - name: Leer contenido de archivo CSV
       ansible.builtin.command:
@@ -160,8 +160,8 @@
       changed_when: false
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
 
     - name: Imprimir contenido del CSV
       ansible.builtin.debug:
@@ -179,8 +179,8 @@
         mode: "0755"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
 
     - name: Imprimir contenido del CSV
       ansible.builtin.debug:
