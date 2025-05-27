@@ -253,8 +253,8 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
   rescue:
     - name: Crear JSON de resultados en caso de error fatal
       ansible.builtin.template:
@@ -266,5 +266,5 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"

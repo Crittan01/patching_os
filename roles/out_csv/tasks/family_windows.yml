@@ -13,8 +13,8 @@
   run_once: true
   vars:
     ansible_connection: ssh
-    ansible_user: "{{ owner }}"
-    ansible_password: "{{ ansible_pwd }}"
+#    ansible_user: "{{ owner }}"
+#    ansible_password: "{{ ansible_pwd }}"
 
 - name: Escribir Columnas del CSV
   ansible.builtin.lineinfile:
@@ -46,8 +46,8 @@
   delegate_to: "{{ server_informes }}"
   vars:
     ansible_connection: ssh
-    ansible_user: "{{ owner }}"
-    ansible_password: "{{ ansible_pwd }}"
+#    ansible_user: "{{ owner }}"
+#    ansible_password: "{{ ansible_pwd }}"
 
 #      {{- results.pre_validation.filesystem_details.threshold_gb }},
 #      {{- results.pre_validation.filesystem_details.space_available_gb }},

@@ -134,8 +134,8 @@
               delegate_to: "{{ server_informes }}"
               vars:
                 ansible_connection: ssh
-                ansible_user: "{{ owner }}"
-                ansible_password: "{{ ansible_pwd }}"
+#                ansible_user: "{{ owner }}"
+#                ansible_password: "{{ ansible_pwd }}"
           rescue:
             - name: Registrar error de pre-parchado
               ansible.builtin.set_fact:
@@ -265,8 +265,8 @@
               delegate_to: "{{ server_informes }}"
               vars:
                 ansible_connection: ssh
-                ansible_user: "{{ owner }}"
-                ansible_password: "{{ ansible_pwd }}"
+#                ansible_user: "{{ owner }}"
+#                ansible_password: "{{ ansible_pwd }}"
 
             - name: Comparar listas con diff
               ansible.builtin.command: >-
@@ -279,8 +279,8 @@
               delegate_to: "{{ server_informes }}"
               vars:
                 ansible_connection: ssh
-                ansible_user: "{{ owner }}"
-                ansible_password: "{{ ansible_pwd }}"
+#                ansible_user: "{{ owner }}"
+#                ansible_password: "{{ ansible_pwd }}"
 
             - name: Limpiar tabs de la salida de sdiff
               # Reemplaza secuencias de tabs (\t) por un espacio
@@ -380,8 +380,8 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
       #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
   rescue:
     - name: Registrar error general del proceso de parchado
@@ -406,6 +406,6 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
       #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

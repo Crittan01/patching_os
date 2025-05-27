@@ -83,8 +83,8 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
       #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
   rescue:
     - name: Registrar error general del proceso de parchado
@@ -109,6 +109,6 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-        ansible_user: "{{ owner }}"
-        ansible_password: "{{ ansible_pwd }}"
+#        ansible_user: "{{ owner }}"
+#        ansible_password: "{{ ansible_pwd }}"
       #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

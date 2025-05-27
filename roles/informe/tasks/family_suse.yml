@@ -198,8 +198,8 @@
   delegate_to: "{{ server_informes }}"
   vars:
     ansible_connection: ssh
-    ansible_user: "{{ owner }}"
-    ansible_password: "{{ ansible_pwd }}"
+#    ansible_user: "{{ owner }}"
+#    ansible_password: "{{ ansible_pwd }}"
 
 - name: Mostrar informe en consola
   ansible.builtin.debug:
