@@ -220,7 +220,7 @@ def build_inventory(inventory_data, so_filter_to_add):
             'ambiente': safe_get(inventory["Ambiente"]),
             'lote': validate_lote_format(return_valid_text(inventory["Lote"])),
             'crq': safe_get(inventory["CRQ"]),
-            'ip': ipv4_address,
+            'ansible_host': ipv4_address,
             'tipo_vmware': safe_get(inventory["TIPO_VMWARE"]),
             'vcenter_vmware': safe_get(inventory["VCENTER_VMWARE"]),
             'datacenter_vmware': safe_get(inventory["DATACENTER_VMWARE"]),
