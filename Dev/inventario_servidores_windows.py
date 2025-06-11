@@ -175,7 +175,7 @@ def build_inventory(inventory_data, so_filter_to_add):
             }
         }
     }
-   
+
     os_counts = {}
     stage_groups = {}
     
