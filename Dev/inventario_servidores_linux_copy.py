@@ -228,7 +228,8 @@ def build_inventory(inventory_data, so_filter_to_add):
             'tipo_vmware': safe_get(inventory["TIPO_VMWARE"]),
             'vcenter_vmware': safe_get(inventory["VCENTER_VMWARE"]),
             'datacenter_vmware': safe_get(inventory["DATACENTER_VMWARE"]),
-            'vm_name': return_valid_text(inventory["VM_NAME"])
+            'vm_name': return_valid_text(inventory["VM_NAME"]),
+            'azure_resource_group': return_valid_text(inventory["azure_resource_group"]),
         }
         # Agregar hostvars
         ansible_inventory['_meta']['hostvars'][hostname] = data_host
