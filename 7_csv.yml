@@ -144,6 +144,9 @@
     sharepoint_url: "https://colcomerciocom.sharepoint.com/sites/AreaInfraestructura"
     sharepoint_base_path: "/sites/AreaInfraestructura/Documentos%20compartidos"
     sharepoint_folder: "/General/Inventario%20Infraestructura/2024/Sincronizacion_Parcheado_SO/Archivos_Generados/Logs_CRQ"
+    windows_share_server: "40.87.50.96"
+    windows_share_path: "DemoClaro"
+    windows_share_folder: "Logs_CRQ"  # Subcarpeta dentro de DemoClaro para organizacion
 
   tasks:
     - name: Facts
@@ -186,6 +189,73 @@
       ansible.builtin.debug:
         var: csv_content.stdout_lines
 
+    - name: Subir ZIP a carpeta compartida Windows
+      block:
+        - name: Traer archivo ZIP al controlador Ansible
+          ansible.builtin.fetch:
+            src: "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+            dest: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+            flat: true
+          vars:
+            ansible_connection: ssh
+
+        - name: Crear directorio en servidor Windows si no existe
+          ansible.windows.win_file:
+            path: "{{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}"
+            state: directory
+          delegate_to: "{{ windows_server }}"
+          vars:
+            ansible_connection: winrm
+            ansible_user: ansible
+            ansible_password: Demoansible2024+-*
+            ansible_winrm_scheme: https
+            ansible_winrm_server_cert_validation: ignore
+            ansible_winrm_transport: ntlm
+            ansible_winrm_port: 5986
+
+        - name: Copiar archivo ZIP a servidor Windows
+          ansible.windows.win_copy:
+            src: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+            dest: "{{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}\\{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+          delegate_to: "{{ windows_server }}"
+          register: copy_result
+          vars:
+            ansible_connection: winrm
+            ansible_user: ansible
+            ansible_password: Demoansible2024+-*
+            ansible_winrm_scheme: https
+            ansible_winrm_server_cert_validation: ignore
+            ansible_winrm_transport: ntlm
+            ansible_winrm_port: 5986
+
+        - name: Mostrar resultado de copia
+          ansible.builtin.debug:
+            msg:
+              - "Archivo copiado exitosamente a:"
+              - "* {{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}\\{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+              - "Servidor: {{ windows_server }}"
+
+        - name: Limpiar archivo temporal
+          ansible.builtin.file:
+            path: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+            state: absent
+          delegate_to: localhost
+
+      rescue:
+        - name: RESCUE - Copia a Windows
+          ansible.builtin.debug:
+            msg:
+              - "No se pudo copiar archivo a Windows Server, visualice el contenido del CSV aquí:"
+              - "{{ csv_content.stdout_lines }}"
+              - "Archivo disponible en: {{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+
+        - name: Limpiar archivo temporal en caso de error
+          ansible.builtin.file:
+            path: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
+            state: absent
+          delegate_to: localhost
+          failed_when: false
+#
 #    - name: Subir ZIP a SharePoint
 #      block:
 #        - name: Subir ZIP a SharePoint

@@ -109,24 +109,51 @@
             name: snapshot
             tasks_from: take_snap_standalone.yml
 
-    - name: Skip para Servidores No Virtualizados VMware
+    - name: Snapshot para Servidores Azure
       when:
         - facts_gathered is defined
-        - ansible_virtualization_type != 'VMware' or ansible_virtualization_role != 'guest'
+        - ansible_virtualization_type in ['VirtualPC', 'Hyper-V']
+        - ansible_virtualization_role == 'guest'
+        - ansible_system_vendor is search("Microsoft Corporation")
+        - ambiente | lower == ambiente_target | lower
+        - crq | lower == crq_input | lower
+        - tipo_vmware == "azure"
+      block:
+        - name: Crear Snapshot Azure
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: take_snap_azure.yml
+
+    - name: Skip para Servidores No Virtualizados
+      when:
+        - facts_gathered is defined
+        - ansible_virtualization_type not in ['VMware', 'VirtualPC', 'Hyper-V']
         - ambiente | lower == ambiente_target | lower
         - crq | lower == crq_input | lower
       block:
-        - name: Skip Snapshot - No VMware
+        - name: Skip Snapshot - No VMware/Azure
           ansible.builtin.include_role:
             name: snapshot
             tasks_from: skip.yml
 
-    - name: Cancel por verificacion de variables
+    - name: Cancel por verificacion de variables VMware
       when:
         - facts_gathered is defined
-        - (tipo_vmware == 'null' or vm_name == 'null' or vcenter_vmware == 'null' or datacenter_vmware == 'null')
+        - ansible_virtualization_type == 'VMware'
+        - (tipo_vmware in ['null', ''] or vm_name in ['null', ''] or vcenter_vmware in ['null', ''] or datacenter_vmware in ['null', ''])
       block:
-        - name: Cancel por verificacion de variables
+        - name: Cancel por verificacion de variables VMware
+          ansible.builtin.include_role:
+            name: snapshot
+            tasks_from: cancel.yml
+
+    - name: Cancel por verificacion de variables Azure
+      when:
+        - facts_gathered is defined
+        - ansible_virtualization_type in ['VirtualPC', 'Hyper-V']
+        - (tipo_vmware in ['null', ''] or vm_name in ['null', ''] or azure_resource_group in ['null', ''] or azure_credentials is not defined)
+      block:
+        - name: Cancel por verificacion de variables Azure
           ansible.builtin.include_role:
             name: snapshot
             tasks_from: cancel.yml

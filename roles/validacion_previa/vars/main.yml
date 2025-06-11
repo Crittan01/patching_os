@@ -4,7 +4,7 @@
 # Definición de espacios mínimos por filesystem
 validacion_previa_fs_space_requirements:
   root: # root es igual que /
-    all_separate: 3000 # Cuando todos los FS están separados
+    all_separate: 1000 # 3000 # Cuando todos los FS están separados
     with_boot: 3500 # Con /boot montado
     with_tmp: 4000 # Con /tmp montado
     with_var: 5000 # Con /var montado

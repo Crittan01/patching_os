@@ -1,7 +1,7 @@
 ---
 config_repo_servidor_repo: ansibleforeman.coldecom.com
 config_repo_ip_repo: 10.181.5.239
-server_informes: 192.168.20.85
+server_informes: 10.2.0.4
 owner: ansible
 group: ansible
 url_base: "https://{{ config_repo_servidor_repo }}/pulp/content/Default_Organization/Library"
@@ -14,6 +14,16 @@ ansible_pwd: !vault |
   32323435363961643866623431616336316530653466663632346533326435613435653535386239
   3365323863366435350a336633643332366164326333343030376134373631303230383763353830
   3332
+
+# Credenciales de Azure
+azure_credentials:
+  subscription_id: "7c5b032f-7879-4ec3-a2ed-978b444f6755"
+  client_id: "9729b469-1d1d-47b0-addf-0c58d91f8c9b"
+  secret: "Ghp8Q~vF8pKoQIh2d89lgShPya5On17~OmxEFbf5"
+  tenant: "11062244-d8ab-4caf-8cf4-7c2c44868da3"
+
+windows_server: "40.87.50.96"
+windows_share_path: "C:\\DemoClaro"
 
 # CREDENCIALES VMWARE (VCENTER)
 vcenter_credentials:

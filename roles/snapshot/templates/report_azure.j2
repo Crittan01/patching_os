@@ -1,0 +1,28 @@
+{
+  "pre_validation": {{ previous_results.pre_validation | to_json }},
+  "snapshot": {
+    "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
+                  'OK' if snapshot_result.changed else 'FAILED' }}",
+    "can_continue": {{ (previous_results.pre_validation.can_continue and 
+                       snapshot_result.changed and 
+                       snapshot_error.keys() | length == 0) | lower }},
+    "timestamp": "{{ ansible_date_time.iso8601 }}",
+    "azure_details": {
+      "resource_group": "{{ azure_resource_group | default('N/A') }}",
+      "vm_name": "{{ vm_name | default('N/A') }}",
+      "location": "{{ vm_location | default('N/A') }}",
+      "os_disk_name": "{{ os_disk_name | default('N/A') }}",
+      "tipo_vmware": "azure"
+    },
+    "snapshot_details": {
+      "name": "{{ snapshot_name if snapshot_result.changed else '' }}",
+      "description": "{{ snapshot_description if snapshot_result.changed else '' }}",
+      "created_at": "{{ ansible_date_time.iso8601 if snapshot_result.changed else '' }}",
+      "operation": "{{ 'Created' if snapshot_result.changed else 'Failed' }}",
+      "snapshot_id": "{{ snapshot_id | default('') }}"
+    },
+    "result": {{ snapshot_result | to_json }},
+    "errors": {{ snapshot_error | default({}) | to_json }},
+    "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else '' }}"
+  }
+}

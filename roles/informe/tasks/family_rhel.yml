@@ -56,6 +56,15 @@
       Detalles del Snapshot: {{ results.snapshot.details.reason }}
       {% endif %}
 
+      {% if results.snapshot.azure_details is defined %}
+      Detalles de Azure:
+      - Resource Group: {{ results.snapshot.azure_details.resource_group }}
+      - Ubicación: {{ results.snapshot.azure_details.location }}
+      - Nombre VM: {{ results.snapshot.azure_details.vm_name }}
+      - Disco del SO: {{ results.snapshot.azure_details.os_disk_name }}
+      - Tipo: {{ results.snapshot.azure_details.tipo_vmware | upper }}
+      {% endif %}
+
       {% if results.snapshot.status == 'FAILED' %}
       Error:
       - Mensaje: {{ results.snapshot.result.msg | default('No disponible') }}

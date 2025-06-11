@@ -1,0 +1,117 @@
+---
+# tasks file take_snap_azure for roles/snapshot
+- name: Validacion y Creacion de Snapshot en Azure VM
+  block:
+    - name: Inicializar variables por defecto
+      ansible.builtin.set_fact:
+        snapshot_error: {}
+        snapshot_result: { "changed": false, "msg": "No ejecutado" }
+        os_disk_name: ""
+        snapshot_id: ""
+
+    - name: Proceso de Snapshot Azure
+      when:
+        - previous_results.pre_validation.can_continue | bool
+      block:
+        - name: Obtener información de la VM en Azure
+          azure.azcollection.azure_rm_virtualmachine_info:
+            subscription_id: "{{ azure_credentials.subscription_id }}"
+            client_id: "{{ azure_credentials.client_id }}"
+            secret: "{{ azure_credentials.secret }}"
+            tenant: "{{ azure_credentials.tenant }}"
+            resource_group: "{{ azure_resource_group }}"
+            name: "{{ vm_name }}"
+          delegate_to: localhost
+          register: vm_info
+
+        - name: Debug - Verificar información de VM
+          ansible.builtin.debug:
+            var: vm_info
+
+        - name: Validar que la VM existe
+          ansible.builtin.fail:
+            msg: "VM {{ vm_name }} no encontrada en resource group {{ azure_resource_group }}"
+          when: vm_info.vms | length == 0
+
+        - name: Obtener lista de discos en el resource group
+          azure.azcollection.azure_rm_manageddisk_info:
+            subscription_id: "{{ azure_credentials.subscription_id }}"
+            client_id: "{{ azure_credentials.client_id }}"
+            secret: "{{ azure_credentials.secret }}"
+            tenant: "{{ azure_credentials.tenant }}"
+            resource_group: "{{ azure_resource_group }}"
+          delegate_to: localhost
+          register: all_disks
+          when: vm_info.vms | length > 0
+
+        - name: Debug - Verificar todos los discos
+          ansible.builtin.debug:
+            var: all_disks
+
+        - name: Encontrar disco del SO de la VM
+          ansible.builtin.set_fact:
+            os_disk_info: "{{ all_disks.ansible_info.azure_managed_disk | selectattr('managed_by', 'search', vm_name) | list | first }}"
+          when:
+            - vm_info.vms | length > 0
+            - all_disks.ansible_info.azure_managed_disk | default([]) | length > 0
+
+        - name: Extraer información del disco del SO
+          ansible.builtin.set_fact:
+            os_disk_name: "{{ os_disk_info.name }}"
+            os_disk_id: "{{ os_disk_info.id }}"
+            vm_location: "{{ vm_info.vms[0].location }}"
+          when:
+            - vm_info.vms | length > 0
+            - os_disk_info is defined
+
+        - name: Crear snapshot del disco del SO
+          azure.azcollection.azure_rm_snapshot:
+            subscription_id: "{{ azure_credentials.subscription_id }}"
+            client_id: "{{ azure_credentials.client_id }}"
+            secret: "{{ azure_credentials.secret }}"
+            tenant: "{{ azure_credentials.tenant }}"
+            name: "{{ inventory_hostname }}_{{ snapshot_name }}"
+            resource_group: "{{ azure_resource_group }}"
+            location: "{{ vm_location }}"
+            creation_data:
+              create_option: Copy
+              source_uri: "{{ os_disk_id }}"
+          delegate_to: localhost
+          register: snapshot_result
+          when:
+            - vm_info.vms | length > 0
+            - os_disk_id is defined
+
+        - name: Guardar ID del snapshot
+          ansible.builtin.set_fact:
+            snapshot_id: "{{ snapshot_result.id }}"
+          when: snapshot_result.changed is defined and snapshot_result.changed
+      rescue:
+        - name: Registrar error de snapshot
+          ansible.builtin.set_fact:
+            snapshot_error:
+              error: "{{ ansible_failed_result.msg | default('Error creando snapshot Azure') }}"
+              type: "AZURE_SNAPSHOT_ERROR"
+              task: "{{ ansible_failed_task.name | default('unknown') }}"
+
+    - name: Crear JSON de resultados
+      ansible.builtin.template:
+        src: report_azure.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+  rescue:
+    - name: Crear JSON de resultados en caso de error fatal
+      ansible.builtin.template:
+        src: report_azure.j2
+        dest: "{{ snapshot_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
+        owner: "{{ owner }}"
+        group: "{{ group }}"
+        mode: "0755"
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
