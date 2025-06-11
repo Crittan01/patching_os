@@ -4,74 +4,8 @@
   block:
     - name: Inicializar variables por defecto
       ansible.builtin.set_fact:
-        paquetes_objetivo_dnf:
-          [
-            "kbd",
-            "shadow-utils",
-            "util-linux",
-            "which",
-            "bash",
-            "coreutils",
-            "iproute",
-            "rpm",
-            "audit",
-            "audit-libs",
-            "bind-utils",
-            "bzip2",
-            "curl",
-            "dnf",
-            "gzip",
-            "sysstat",
-            "logrotate",
-            "lsof",
-            "mtr",
-            "nano",
-            "net-tools",
-            "nmap",
-            "rsyslog",
-            "screen",
-            "sudo",
-            "sysstat",
-            "tar",
-            "traceroute",
-            "vim",
-            "wget",
-            "xz",
-          ]
-        paquetes_objetivo_yum:
-          [
-            "kbd",
-            "shadow-utils",
-            "util-linux",
-            "which",
-            "bash",
-            "coreutils",
-            "iproute",
-            "rpm",
-            "audit",
-            "audit-libs",
-            "bind-utils",
-            "bzip2",
-            "curl",
-            "gzip",
-            "sysstat",
-            "logrotate",
-            "lsof",
-            "mtr",
-            "nano",
-            "net-tools",
-            "nmap",
-            "rsyslog",
-            "screen",
-            "sudo",
-            "sysstat",
-            "tar",
-            "traceroute",
-            "vim",
-            "wget",
-            "xz",
-            "yum",
-          ]
+        paquetes_objetivo_dnf: '*'
+        paquetes_objetivo_yum: '*'
         paquetes_antes: { "stdout_lines": [] }
         paquetes_despues: { "stdout_lines": [] }
         paquetes_info:
