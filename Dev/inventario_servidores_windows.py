@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import json
 import logging
@@ -175,7 +175,7 @@ def build_inventory(inventory_data, so_filter_to_add):
             }
         }
     }
-
+   
     os_counts = {}
     stage_groups = {}
     
@@ -225,7 +225,6 @@ def build_inventory(inventory_data, so_filter_to_add):
             'vcenter_vmware': safe_get(inventory["VCENTER_VMWARE"]),
             'datacenter_vmware': safe_get(inventory["DATACENTER_VMWARE"]),
             'vm_name': return_valid_text(inventory["VM_NAME"]),
-            'azure_resource_group': return_valid_text(inventory["azure_resource_group"]),
         }
         # Agregar hostvars
         ansible_inventory['_meta']['hostvars'][hostname] = data_host
