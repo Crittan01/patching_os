@@ -1,0 +1,21 @@
+---
+# Playbook para validar limitaciones sudo sin afectar el sistema
+- name: Buscar actualizaciones disponibles Windows
+  hosts: windows
+  gather_facts: false
+
+  tasks:
+    - name: Buscar actualizaciones disponibles
+      block:
+        - name: Buscar updates
+          ansible.windows.win_updates:
+            category_names: "{{ update_categories }}"
+            state: searched
+          register: search_results
+          retries: 3
+          delay: 60
+          until: search_results is success and search_results.found_update_count is defined
+
+        - name: DEBUG
+          ansible.builtin.debug:
+            var: search_results
