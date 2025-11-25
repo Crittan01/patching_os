@@ -1,15 +1,25 @@
 ---
 # Playbook para validar limitaciones sudo sin afectar el sistema
 - name: Buscar actualizaciones disponibles Windows
-  hosts: windows
+  hosts: LABMCPGIR1
   gather_facts: false
 
   tasks:
+    - name: Validar acceso al registro
+      ansible.windows.win_reg_stat:
+        path: HKLM:\SOFTWARE\
+      register: reg_status
+
+    - name: DEBUG
+      ansible.builtin.debug:
+        var: reg_status
+
+
     - name: Buscar actualizaciones disponibles
       block:
         - name: Buscar updates
           ansible.windows.win_updates:
-            category_names: "{{ update_categories }}"
+            category_names: "*"
             state: searched
           register: search_results
           retries: 3
