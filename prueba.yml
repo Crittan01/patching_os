@@ -1,7 +1,7 @@
 ---
 # Playbook para validar limitaciones sudo sin afectar el sistema
 - name: Buscar actualizaciones disponibles Windows
-  hosts: all
+  hosts: windows
   gather_facts: false
 
   tasks:
