@@ -1,18 +1,13 @@
 ---
-# Playbook para validar limitaciones sudo sin afectar el sistema
 - name: Buscar actualizaciones disponibles Windows
   hosts: windows
-  gather_facts: false
+  gather_facts: true
 
   tasks:
-    - name: Validar acceso al registro
-      ansible.windows.win_reg_stat:
-        path: HKLM:\SOFTWARE\
-      register: reg_status
-
-    - name: DEBUG
+    - name: Mostrar versión del sistema operativo
       ansible.builtin.debug:
-        var: reg_status
+        msg: >
+          Versión: {{ ansible_facts.distribution }}
 
 
     - name: Buscar actualizaciones disponibles
