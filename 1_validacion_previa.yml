@@ -16,8 +16,6 @@
       ansible.builtin.file:
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
       delegate_to: ansibleawx
 
