@@ -39,12 +39,10 @@
       ansible.builtin.template:
         src: report_family_windows.j2
         dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
 #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

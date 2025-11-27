@@ -22,10 +22,10 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        #        ansible_user: "{{ owner }}"
+        #        ansible_password: "{{ ansible_pwd }}"
         ansible_python_interpreter: /usr/bin/python3
-  #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
     - name: Decodificar JSON de pre-validación
       when:
@@ -53,10 +53,11 @@
       block:
         - name: Registrar error de recolección de facts
           ansible.builtin.set_fact:
-            fact_error: {
-              "error": "No se pudo establecer conexion con el servidor",
-              "type": "CONNECT_FAILED"
-            }
+            fact_error:
+              {
+                "error": "No se pudo establecer conexion con el servidor",
+                "type": "CONNECT_FAILED",
+              }
 
         - name: Crear JSON para host con facts fallidos
           ansible.builtin.copy:
@@ -76,8 +77,8 @@
           delegate_to: "{{ server_informes }}"
           vars:
             ansible_connection: ssh
-#            ansible_user: "{{ owner }}"
-#            ansible_password: "{{ ansible_pwd }}"
+  #            ansible_user: "{{ owner }}"
+  #            ansible_password: "{{ ansible_pwd }}"
   tasks:
     - name: Snapshot para Servidores VMware VCenter
       when:
