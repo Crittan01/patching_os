@@ -37,7 +37,6 @@
         flatten | map('regex_replace', '^', 'KB') | join('|') }}
       {%- endif -%},
       {{- 'Validacion Previa' if not results.pre_validation.can_continue else
-          'Proceso Snapshot' if not results.snapshot.can_continue else
           'Configuracion de Repositorio' if not results.repo_config.can_continue else
           'Proceso de Parchado' if not results.patching.can_continue else
           'Validacion Post-Parchado' if not results.post_validation.can_continue else
