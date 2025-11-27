@@ -118,7 +118,5 @@
       ansible.builtin.template:
         src: report_family_windows.j2
         dest: "{{ validacion_previa_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
       delegate_to: ansibleawx
