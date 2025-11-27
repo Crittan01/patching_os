@@ -18,11 +18,11 @@
       ansible.builtin.slurp:
         src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/final_results_{{ inventory_hostname }}.json"
       register: final_results_file
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
     #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
     - name: Decodificar JSON final
@@ -55,15 +55,13 @@
             line: "CRQ,Lote,Hostname,IP,Distribucion,Fecha,Repo_Fuente,Cantidad_Paquetes,Paquetes_Eliminados,Paquetes_Instalados,Punto_Fallo,Estado_Final"
             create: true
             state: present
-            owner: "{{ owner }}"
-            group: "{{ group }}"
             mode: "0755"
-          delegate_to: "{{ server_informes }}"
           run_once: true
+          delegate_to: ansibleawx
           vars:
             ansible_connection: ssh
-#            ansible_user: "{{ owner }}"
-#            ansible_password: "{{ ansible_pwd }}"
+            ansible_user: "{{ informe_user }}"
+            ansible_password: "{{ informe_password }}"
 
         - name: Escribir Columnas del CSV
           ansible.builtin.lineinfile:
@@ -87,11 +85,12 @@
                   'Validacion Post-Parchado' if not results.post_validation.can_continue else
                   'Ninguno' }},
               {{- results.final_results.error.error | default('No status') }}
-          delegate_to: "{{ server_informes }}"
+          delegate_to: ansibleawx
           vars:
             ansible_connection: ssh
-#            ansible_user: "{{ owner }}"
-#            ansible_password: "{{ ansible_pwd }}"
+            ansible_user: "{{ informe_user }}"
+            ansible_password: "{{ informe_password }}"
+
   tasks:
     - name: Generacion de CSV para 'SLES'
       when:
@@ -130,159 +129,3 @@
           ansible.builtin.include_role:
             name: out_csv
             tasks_from: family_windows.yml
-
-- name: Lectura de Informe consolidado en un CSV
-  hosts: server_informes
-  gather_facts: false
-  serial: 1
-  vars_files:
-    - vars/global.yml
-
-  vars:
-    log_dir: "/var/log/ansible_patches"
-    out_csv_name: consolidado
-    sharepoint_url: "https://colcomerciocom.sharepoint.com/sites/AreaInfraestructura"
-    sharepoint_base_path: "/sites/AreaInfraestructura/Documentos%20compartidos"
-    sharepoint_folder: "/General/Inventario%20Infraestructura/2024/Sincronizacion_Parcheado_SO/Archivos_Generados/Logs_CRQ"
-    windows_share_server: "40.87.50.96"
-    windows_share_path: "DemoClaro"
-    windows_share_folder: "Logs_CRQ"  # Subcarpeta dentro de DemoClaro para organizacion
-
-  tasks:
-    - name: Facts
-      ansible.builtin.setup:
-      vars:
-        ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
-
-    - name: Leer contenido de archivo CSV
-      ansible.builtin.command:
-        cmd: cat "{{ log_dir }}/{{ crq_input | upper }}/{{ out_csv_name }}-{{ crq_input | upper }}.csv"
-      register: csv_content
-      changed_when: false
-      vars:
-        ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
-
-    - name: Imprimir contenido del CSV
-      ansible.builtin.debug:
-        var: csv_content.stdout_lines
-
-    - name: Capturar Fecha del ZIP
-      ansible.builtin.set_fact:
-        fecha_crq: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}-{{ ansible_date_time.minute }}-{{ ansible_date_time.second }}"
-
-    - name: Comprimir carpeta CRQ
-      community.general.archive:
-        path: "{{ log_dir }}/{{ crq_input | upper }}"
-        dest: "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-        format: zip
-        mode: "0755"
-      vars:
-        ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
-
-    - name: Imprimir contenido del CSV
-      ansible.builtin.debug:
-        var: csv_content.stdout_lines
-
-    - name: Subir ZIP a carpeta compartida Windows
-      block:
-        - name: Traer archivo ZIP al controlador Ansible
-          ansible.builtin.fetch:
-            src: "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-            dest: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-            flat: true
-          vars:
-            ansible_connection: ssh
-
-        - name: Crear directorio en servidor Windows si no existe
-          ansible.windows.win_file:
-            path: "{{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}"
-            state: directory
-          delegate_to: "{{ windows_server }}"
-          vars:
-            ansible_connection: winrm
-            ansible_user: ansible
-            ansible_password: Demoansible2024+-*
-            ansible_winrm_scheme: https
-            ansible_winrm_server_cert_validation: ignore
-            ansible_winrm_transport: ntlm
-            ansible_winrm_port: 5986
-
-        - name: Copiar archivo ZIP a servidor Windows
-          ansible.windows.win_copy:
-            src: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-            dest: "{{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}\\{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-          delegate_to: "{{ windows_server }}"
-          register: copy_result
-          vars:
-            ansible_connection: winrm
-            ansible_user: ansible
-            ansible_password: Demoansible2024+-*
-            ansible_winrm_scheme: https
-            ansible_winrm_server_cert_validation: ignore
-            ansible_winrm_transport: ntlm
-            ansible_winrm_port: 5986
-
-        - name: Mostrar resultado de copia
-          ansible.builtin.debug:
-            msg:
-              - "Archivo copiado exitosamente a:"
-              - "* {{ windows_share_path }}\\{{ ansible_date_time.year }}\\{{ ansible_date_time.month }}\\{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-              - "Servidor: {{ windows_server }}"
-
-        - name: Limpiar archivo temporal
-          ansible.builtin.file:
-            path: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-            state: absent
-          delegate_to: localhost
-
-      rescue:
-        - name: RESCUE - Copia a Windows
-          ansible.builtin.debug:
-            msg:
-              - "No se pudo copiar archivo a Windows Server, visualice el contenido del CSV aquí:"
-              - "{{ csv_content.stdout_lines }}"
-              - "Archivo disponible en: {{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-
-        - name: Limpiar archivo temporal en caso de error
-          ansible.builtin.file:
-            path: "/tmp/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-            state: absent
-          delegate_to: localhost
-          failed_when: false
-#
-#    - name: Subir ZIP a SharePoint
-#      block:
-#        - name: Subir ZIP a SharePoint
-#          ansible.builtin.script:
-#            cmd: roles/out_csv/files/upload_sharepoint.py
-#              --file-path "{{ log_dir }}/{{ crq_input | upper }}_{{ fecha_crq }}.zip"
-#              --tenant-id "{{ tenant_id }}"
-#              --client-id "{{ client_id }}"
-#              --client-secret "{{ client_secret }}"
-#              --sharepoint-url "{{ sharepoint_url }}"
-#              --sharepoint-folder "{{ sharepoint_base_path }}{{ sharepoint_folder }}"
-#          register: upload_result
-#          retries: 3
-#          delay: 10
-#          until: upload_result is success
-#          changed_when: 'upload_result.stdout is search(''"success": true'')'
-#          vars:
-#            ansible_connection: ssh
-#            ansible_user: "{{ owner }}"
-#            ansible_password: "{{ ansible_pwd }}"
-#
-#        - name: Mostrar resultado de subida
-#          ansible.builtin.debug:
-#            msg: "{{ upload_result.stdout | from_json }}"
-#      rescue:
-#        - name: RESCUE - Subida
-#          ansible.builtin.debug:
-#            msg:
-#              - "No se pudo subir archivo a Sharepoint, visualicelo aca:"
-#              - "{{ csv_content.stdout_lines }}"

@@ -6,15 +6,13 @@
     line: "CRQ,Lote,Hostname,IP,Distribucion,Fecha,Repo_Fuente,Cantidad_Paquetes,Paquetes_Eliminados,Paquetes_Instalados,Punto_Fallo,Estado_Final"
     create: true
     state: present
-    owner: "{{ owner }}"
-    group: "{{ group }}"
     mode: "0755"
-  delegate_to: "{{ server_informes }}"
   run_once: true
+  delegate_to: ansibleawx
   vars:
     ansible_connection: ssh
-#    ansible_user: "{{ owner }}"
-#    ansible_password: "{{ ansible_pwd }}"
+    ansible_user: "{{ informe_user }}"
+    ansible_password: "{{ informe_password }}"
 
 - name: Escribir Columnas del CSV
   ansible.builtin.lineinfile:
@@ -42,11 +40,8 @@
           'Validacion Post-Parchado' if not results.post_validation.can_continue else
           'Ninguno.' }},
       {{- results.post_validation.status }}
-  delegate_to: "{{ server_informes }}"
+  delegate_to: ansibleawx
   vars:
     ansible_connection: ssh
-#    ansible_user: "{{ owner }}"
-#    ansible_password: "{{ ansible_pwd }}"
-
-#      {{- results.pre_validation.filesystem_details.threshold_gb }},
-#      {{- results.pre_validation.filesystem_details.space_available_gb }},
+    ansible_user: "{{ informe_user }}"
+    ansible_password: "{{ informe_password }}"
