@@ -7,7 +7,7 @@
     - vars/global.yml
 
   vars:
-    log_dir: "/tmp/log/ansible_patches"
+    log_dir: "/var/log/ansible_patches"
 
   pre_tasks:
     - name: Crear directorio de logs
@@ -17,7 +17,14 @@
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
         mode: "0755"
-      delegate_to: ansibleawx
+      become: true
+      delegate_to: "{{ server_informes }}"
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ owner }}"
+        ansible_password: "{{ awx_ssh_password }}"
+    #        ansible_python_interpreter: /usr/bin/python3
+    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
 
     - name: Recolectar FACTS
       ansible.builtin.setup:
@@ -58,7 +65,11 @@
             owner: "{{ owner }}"
             group: "{{ group }}"
             mode: "0755"
-          delegate_to: ansibleawx
+          delegate_to: "{{ server_informes }}"
+          vars:
+            ansible_connection: ssh
+  #            ansible_user: "{{ owner }}"
+  #            ansible_password: "{{ ansible_pwd }}"
 
   tasks:
     - name: Validaciones Previas para SLES y REDHAT
