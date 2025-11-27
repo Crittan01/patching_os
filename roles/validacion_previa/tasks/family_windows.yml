@@ -8,24 +8,20 @@
         validation_error: {}
         umbral: 20
         unidad: "C"
-        reboot_status: {
-          "initial_pending": false,
-          "reboot_executed": false,
-          "reboot_details": {}
-        }
-        space_status: {
-          "checked": false,
-          "meets_requirements": false
-        }
-        service_status: {
-          "checked": false,
-          "services_counted": false
-        }
-        validation_blocks: {
-          "reboot": {"executed": false, "success": false},
-          "space": {"executed": false, "success": false},
-          "services": {"executed": false, "success": false}
-        }
+        reboot_status:
+          {
+            "initial_pending": false,
+            "reboot_executed": false,
+            "reboot_details": {},
+          }
+        space_status: { "checked": false, "meets_requirements": false }
+        service_status: { "checked": false, "services_counted": false }
+        validation_blocks:
+          {
+            "reboot": { "executed": false, "success": false },
+            "space": { "executed": false, "success": false },
+            "services": { "executed": false, "success": false },
+          }
 
     # Validación de reinicio pendiente
     - name: Verificar estado de reinicio
@@ -51,9 +47,9 @@
           ansible.builtin.set_fact:
             validation_error: "{{ validation_error | combine({
               'reboot_ckeck': {
-                'error': ansible_failed_result.msg | default('Error verificando estado de reinicio') | regex_replace('\n', ' '),
-                'type': 'REBOOT_CHECK_ERROR',
-                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+              'error': ansible_failed_result.msg | default('Error verificando estado de reinicio') | regex_replace('\n', ' '),
+              'type': 'REBOOT_CHECK_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     # Validacion de Espacio
     - name: Validar espacio en Disco
@@ -80,18 +76,19 @@
         - name: Validar espacio disponible en el Disco {{ unidad }}
           ansible.builtin.set_fact:
             todos_cumplen: "{{ espacio_libre_gb | int >= umbral | float }}"
-            space_status: {
-              "checked": true,
-              "meets_requirements": "{{ espacio_libre_gb | int >= umbral | float }}"
-            }
+            space_status:
+              {
+                "checked": true,
+                "meets_requirements": "{{ espacio_libre_gb | int >= umbral | float }}",
+              }
       rescue:
         - name: Registrar Error de reinicio
           ansible.builtin.set_fact:
             validation_error: "{{ validation_error | combine({
               'space_ckeck': {
-                'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
-                'type': 'SPACE_CHECK_ERROR',
-                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+              'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
+              'type': 'SPACE_CHECK_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     # Validación de servicios inicial
     - name: Validar Servicios
@@ -107,18 +104,15 @@
               selectattr('state', 'equalto', 'started') |
               map(attribute='name') |
               list }}"
-            service_status: {
-              "checked": true,
-              "services_counted": true
-            }
+            service_status: { "checked": true, "services_counted": true }
       rescue:
         - name: Registrar error de validación de servicios
           ansible.builtin.set_fact:
             validation_error: "{{ validation_error | combine({
               'service_check': {
-                'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
-                'type': 'SERVICE_CHECK_ERROR',
-                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+              'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
+              'type': 'SERVICE_CHECK_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     - name: Crear JSON de resultados
       ansible.builtin.template:
@@ -132,5 +126,5 @@
         ansible_connection: ssh
 #        ansible_user: "{{ owner }}"
 #        ansible_password: "{{ ansible_pwd }}"
-        ansible_python_interpreter: /usr/bin/python3
-        # ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
+#        ansible_python_interpreter: /usr/bin/python3
+# ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
