@@ -16,15 +16,17 @@
       ansible.builtin.file:
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
+        owner: "{{ owner }}"
+        group: "{{ group }}"
         mode: "0755"
       become: true
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
         ansible_user: "{{ owner }}"
-        ansible_password: "{{ awx_ssh_password }}"
-    #        ansible_python_interpreter: /usr/bin/python3
-    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
+        #        ansible_password: "{{ ansible_pwd }}"
+        #        ansible_python_interpreter: /usr/bin/python3
+        ansible_ssh_private_key_file: /runner/.ssh/id_rsa
 
     - name: Recolectar FACTS
       ansible.builtin.setup:
