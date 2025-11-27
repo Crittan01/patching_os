@@ -19,7 +19,6 @@
         owner: "{{ owner }}"
         group: "{{ group }}"
         mode: "0755"
-      become: true
       delegate_to: ansibleawx
 
     - name: Recolectar FACTS
