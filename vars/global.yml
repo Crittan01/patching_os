@@ -1,7 +1,7 @@
 ---
 config_repo_servidor_repo: ansibleforeman.coldecom.com
 config_repo_ip_repo: 10.181.5.239
-server_informes: 192.168.20.85
+# server_informes: 192.168.20.85
 owner: ansible
 group: ansible
 url_base: "https://{{ config_repo_servidor_repo }}/pulp/content/Default_Organization/Library"
