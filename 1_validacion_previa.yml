@@ -10,13 +10,27 @@
     log_dir: "/var/log/ansible_patches"
 
   pre_tasks:
+    - name: Obtener info del usuario en ansibleawx
+      ansible.builtin.setup:
+        gather_subset:
+          - user
+      delegate_to: ansibleawx
+      delegate_facts: true
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
+
     - name: Crear directorio de logs
       when:
         - crq | lower == crq_input | lower
       ansible.builtin.file:
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
+        owner: "{{ hostvars['ansibleawx']['ansible_user_id'] }}"
+        group: "{{ hostvars['ansibleawx']['ansible_user_gid'] }}"
         mode: "0755"
+      become: true
       delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
