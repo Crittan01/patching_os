@@ -20,13 +20,7 @@
         group: "{{ group }}"
         mode: "0755"
       become: true
-      delegate_to: "{{ server_informes }}"
-      vars:
-        ansible_connection: ssh
-    #        ansible_user: "{{ owner }}"
-    #        ansible_password: "{{ ansible_pwd }}"
-    #        ansible_python_interpreter: /usr/bin/python3
-    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
+      delegate_to: ansibleawx
 
     - name: Recolectar FACTS
       ansible.builtin.setup:
@@ -67,11 +61,7 @@
             owner: "{{ owner }}"
             group: "{{ group }}"
             mode: "0755"
-          delegate_to: "{{ server_informes }}"
-          vars:
-            ansible_connection: ssh
-  #            ansible_user: "{{ owner }}"
-  #            ansible_password: "{{ ansible_pwd }}"
+          delegate_to: ansibleawx
 
   tasks:
     - name: Validaciones Previas para SLES y REDHAT

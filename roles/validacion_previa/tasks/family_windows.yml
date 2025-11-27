@@ -121,4 +121,4 @@
         owner: "{{ owner }}"
         group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
