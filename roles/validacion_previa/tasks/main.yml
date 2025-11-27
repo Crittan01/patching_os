@@ -81,9 +81,9 @@
           ansible.builtin.set_fact:
             validation_error: "{{ validation_error | combine({
               'space_ckeck': {
-                'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
-                'type': 'SPACE_CHECK_ERROR',
-                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+              'error': ansible_failed_result.msg | default('Error estado espacio') | regex_replace('\n', ' '),
+              'type': 'SPACE_CHECK_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     - name: Validar Servicios
       block:
@@ -103,22 +103,20 @@
           ansible.builtin.set_fact:
             validation_error: "{{ validation_error | combine({
               'service_check': {
-                'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
-                'type': 'SERVICE_CHECK_ERROR',
-                'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+              'error': ansible_failed_result.msg | default('Error verificando servicios') | regex_replace('\n', ' '),
+              'type': 'SERVICE_CHECK_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     # Generar JSON con resultados
     - name: Crear JSON de resultados
       ansible.builtin.template:
         src: report_main.j2
         dest: "{{ validacion_previa_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
-        ansible_python_interpreter: /usr/bin/python3
-      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
+#        ansible_python_interpreter: /usr/bin/python3
+#        ansible_ssh_private_key_file: ~/.ssh/id_rsa_awx

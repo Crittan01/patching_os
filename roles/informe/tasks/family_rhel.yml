@@ -30,48 +30,7 @@
       {% endfor %}
       {% endif %}
 
-      2. SNAPSHOT PRE-PARCHADO
-      -------------------------
-      Estado: {{ results.snapshot.status }}
-      {% if results.snapshot.status == 'SKIPPED' %}
-      Razón: {{ results.snapshot.skipped_reason }}
-      {% else %}
-      {% if results.snapshot.virtualization_details is defined %}
-      Detalles de Virtualización:
-      - Tipo: {{ results.snapshot.virtualization_details.type }}
-      - Rol: {{ results.snapshot.virtualization_details.role }}
-      - vCenter: {{ results.snapshot.virtualization_details.vcenter }}
-      - Datacenter: {{ results.snapshot.virtualization_details.datacenter }}
-      - Nombre VM: {{ results.snapshot.virtualization_details.vm_name }}
-      - Tipo VM: {{ results.snapshot.virtualization_details.tipo_vmware }}
-      {% endif %}
-      {% if results.snapshot.snapshot_details is defined %}
-      Detalles del Snapshot:
-      - Nombre: {{ results.snapshot.snapshot_details.name }}
-      - Descripción: {{ results.snapshot.snapshot_details.description }}
-      - Fecha/Hora: {{ results.snapshot.snapshot_details.created_at }}
-      - Operación: {{ results.snapshot.snapshot_details.operation }}
-      {% else %}
-
-      Detalles del Snapshot: {{ results.snapshot.details.reason }}
-      {% endif %}
-
-      {% if results.snapshot.azure_details is defined %}
-      Detalles de Azure:
-      - Resource Group: {{ results.snapshot.azure_details.resource_group }}
-      - Ubicación: {{ results.snapshot.azure_details.location }}
-      - Nombre VM: {{ results.snapshot.azure_details.vm_name }}
-      - Disco del SO: {{ results.snapshot.azure_details.os_disk_name }}
-      - Tipo: {{ results.snapshot.azure_details.tipo_vmware | upper }}
-      {% endif %}
-
-      {% if results.snapshot.status == 'FAILED' %}
-      Error:
-      - Mensaje: {{ results.snapshot.result.msg | default('No disponible') }}
-      {% endif %}
-      {% endif %}
-
-      3. CONFIGURACION DE REPOSITORIO
+      2. CONFIGURACION DE REPOSITORIO
       -----------------------------
       Estado: {{ results.repo_config.status }}
       {% if results.repo_config.skipped_reason is defined and results.repo_config.skipped_reason %}
@@ -113,7 +72,7 @@
       {% endfor %}
       {% endif %}
 
-      4. PARCHADO
+      3. PARCHADO
       ----------
       Estado: {{ results.patching.status }}
       {% if results.patching.status == 'SKIPPED' %}
@@ -160,7 +119,7 @@
         {% endif %}
       {% endif %}
 
-      5. VALIDACION POST-PARCHADO
+      4. VALIDACION POST-PARCHADO
       -------------------------
       Estado: {{ results.post_validation.status }}
       {% if results.post_validation.status == 'SKIPPED' %}
@@ -196,10 +155,9 @@
         * Mensaje: {{ results.post_validation.reboot.message }}
       {% endif %}
 
-      6. RESUMEN FINAL
+      5. RESUMEN FINAL
       --------------
       Estado General: {{ 'COMPLETADO EXITOSO' if (results.pre_validation.can_continue and
-                                          results.snapshot.can_continue and
                                           results.repo_config.can_continue and
                                           results.patching.can_continue and
                                           results.post_validation.can_continue)
@@ -207,8 +165,6 @@
 
       Punto de Fallo: {% if not results.pre_validation.can_continue %}
                         Validacion Previa
-                     {% elif not results.snapshot.can_continue %}
-                       Validacion y/o toma de Snapshot
                       {% elif not results.repo_config.can_continue %}
                         Configuracion de Repositorio
                       {% elif not results.patching.can_continue %}
@@ -225,57 +181,14 @@
   ansible.builtin.copy:
     content: "{{ informe_content }}"
     dest: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/informe_{{ crq_input }}_{{ inventory_hostname }}.txt"
-    owner: "{{ owner }}"
-    group: "{{ group }}"
     mode: "0755"
-  delegate_to: "{{ server_informes }}"
+  delegate_to: ansibleawx
   vars:
     ansible_connection: ssh
-    ansible_user: "{{ owner }}"
-    ansible_password: "{{ ansible_pwd }}"
+    ansible_user: "{{ informe_user }}"
+    ansible_password: "{{ informe_password }}"
 #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
 - name: Mostrar informe en consola
   ansible.builtin.debug:
     msg: "{{ informe_content.split('\n') }}"
-#
-#    - name: Preparar resumen general de todos los hosts
-#      ansible.builtin.set_fact:
-#        resumen_general: |
-#          ===========================================================
-#          RESUMEN GENERAL DE PARCHADO - CRQ {{ crq_input }}
-#          ===========================================================
-#          Fecha: {{ ansible_date_time.iso8601 }}
-#
-#          ESTADO POR SERVIDOR:
-#          {% for host in ansible_play_hosts_all %}
-#          {{ host }}:
-#          - Estado: {{ hostvars[host].results.post_validation.status }}
-#          {% if hostvars[host].results.post_validation.status != 'OK' %}
-#          - Razon: {{ hostvars[host].results.post_validation.skipped_reason }}
-#          {% endif %}
-#          {% endfor %}
-#
-#          ESTADiSTICAS:
-#          - Total Servidores: {{ ansible_play_hosts_all | length }}
-#          - Exitosos: {{ ansible_play_hosts_all | map('extract', hostvars) |
-#                        selectattr('results.post_validation.status', 'equalto', 'OK') | list | length }}
-#          - Fallidos/Saltados: {{ ansible_play_hosts_all | map('extract', hostvars) |
-#                                 rejectattr('results.post_validation.status', 'equalto', 'OK') | list | length }}
-#          ===========================================================
-#
-#    - name: Guardar resumen general
-#      ansible.builtin.copy:
-#        content: "{{ resumen_general }}"
-#        dest: "{{ log_dir }}/resumen_general_{{ crq_input }}.txt"
-#        mode: "0755"
-#        group: ansible
-#      delegate_to: "{{ server_informes }}"
-#      become: true
-#      run_once: true
-#
-#    - name: Mostrar resumen general en consola
-#      ansible.builtin.debug:
-#        msg: "{{ resumen_general.split('\n') }}"
-#      run_once: true
-#

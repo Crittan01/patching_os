@@ -12,7 +12,6 @@
     - name: BLOQUE validación de repositorios
       when:
         - previous_results.pre_validation.can_continue
-        - previous_results.snapshot.can_continue
       block:
         # Detección de repositorios existentes
         - name: Obtener repositorios habilitados
@@ -107,14 +106,13 @@
       ansible.builtin.template:
         src: report_family_rhel.j2
         dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-  #        ansible_user: "{{ owner }}"
-  #        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
+
   rescue:
     - name: Registrar error fatal
       ansible.builtin.set_fact:
@@ -131,11 +129,9 @@
       ansible.builtin.template:
         src: report_family_rhel.j2
         dest: "{{ config_repo_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/repo_config_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"

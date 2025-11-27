@@ -1,6 +1,5 @@
 {
   "pre_validation": {{ previous_results.pre_validation | to_json }},
-  "snapshot": {{ previous_results.snapshot | to_json }},
   "repo_config": {
     "status": "{{ 'SKIPPED' if not previous_results.pre_validation.can_continue else
                   repo_status | default('FAILED') }}",

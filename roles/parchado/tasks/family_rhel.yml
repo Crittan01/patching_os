@@ -4,8 +4,8 @@
   block:
     - name: Inicializar variables por defecto
       ansible.builtin.set_fact:
-        paquetes_objetivo_dnf: "*"
-        paquetes_objetivo_yum: "*"
+        paquetes_objetivo_dnf: "which"
+        paquetes_objetivo_yum: "which"
         paquetes_antes: { "stdout_lines": [] }
         paquetes_despues: { "stdout_lines": [] }
         paquetes_info:
@@ -21,7 +21,6 @@
     - name: BLOQUE parchado
       when:
         - previous_results.pre_validation.can_continue
-        - previous_results.snapshot.can_continue
         - previous_results.repo_config.can_continue
       block:
         # Pre-parchado
@@ -62,14 +61,13 @@
               ansible.builtin.copy:
                 content: "{{ paquetes_antes.stdout }}"
                 dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_antes_{{ inventory_hostname }}.txt"
-                owner: "{{ owner }}"
-                group: "{{ group }}"
                 mode: "0755"
-              delegate_to: "{{ server_informes }}"
-              vars:
-                ansible_connection: ssh
-          #                ansible_user: "{{ owner }}"
-          #                ansible_password: "{{ ansible_pwd }}"
+          delegate_to: ansibleawx
+          vars:
+            ansible_connection: ssh
+            ansible_user: "{{ informe_user }}"
+            ansible_password: "{{ informe_password }}"
+
           rescue:
             - name: Registrar error de pre-parchado
               ansible.builtin.set_fact:
@@ -193,14 +191,12 @@
               ansible.builtin.copy:
                 content: "{{ paquetes_despues.stdout }}"
                 dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pkg_despues_{{ inventory_hostname }}.txt"
-                owner: "{{ owner }}"
-                group: "{{ group }}"
                 mode: "0755"
-              delegate_to: "{{ server_informes }}"
+              delegate_to: ansibleawx
               vars:
                 ansible_connection: ssh
-            #                ansible_user: "{{ owner }}"
-            #                ansible_password: "{{ ansible_pwd }}"
+                ansible_user: "{{ informe_user }}"
+                ansible_password: "{{ informe_password }}"
 
             - name: Comparar listas con diff
               ansible.builtin.command: >-
@@ -210,11 +206,11 @@
               register: diff_output
               failed_when: diff_output.rc not in [0, 1] # `sdiff` retorna 0 si no hay diferencias, 1 si hay diferencias.
               changed_when: false
-              delegate_to: "{{ server_informes }}"
+              delegate_to: ansibleawx
               vars:
                 ansible_connection: ssh
-            #                ansible_user: "{{ owner }}"
-            #                ansible_password: "{{ ansible_pwd }}"
+                ansible_user: "{{ informe_user }}"
+                ansible_password: "{{ informe_password }}"
 
             - name: Limpiar tabs de la salida de sdiff
               # Reemplaza secuencias de tabs (\t) por un espacio
@@ -308,15 +304,14 @@
       ansible.builtin.template:
         src: report_family_rhel.j2
         dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-  #        ansible_user: "{{ owner }}"
-  #        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
   #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
   rescue:
     - name: Registrar error general del proceso de parchado
       ansible.builtin.set_fact:
@@ -334,12 +329,10 @@
       ansible.builtin.template:
         src: report_family_rhel.j2
         dest: "{{ parchado_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/patching_{{ inventory_hostname }}.json"
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"
 #        ansible_ssh_private_key_file: ~/.ssh/id_rsa

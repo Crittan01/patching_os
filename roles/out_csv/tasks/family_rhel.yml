@@ -6,15 +6,12 @@
     line: "CRQ,Lote,Hostname,IP,Distribucion,Fecha,Repo_Fuente,Cantidad_Paquetes,Paquetes_Eliminados,Paquetes_Instalados,Punto_Fallo,Estado_Final"
     create: true
     state: present
-    owner: "{{ owner }}"
-    group: "{{ group }}"
     mode: "0755"
-  delegate_to: "{{ server_informes }}"
-  run_once: true
+  delegate_to: ansibleawx
   vars:
     ansible_connection: ssh
-#    ansible_user: "{{ owner }}"
-#    ansible_password: "{{ ansible_pwd }}"
+    ansible_user: "{{ informe_user }}"
+    ansible_password: "{{ informe_password }}"
 
 # FOREMAN
 # - name: Escribir Columnas del CSV
@@ -61,14 +58,13 @@
       {{- results.patching.package_changes.eliminados | default(['No eliminados']) | join('|') }},
       {{- results.patching.package_changes.nuevos | default(['No nuevos']) | join('|') }},
       {{- 'Validacion Previa' if not results.pre_validation.can_continue else
-          'Proceso Snapshot' if not results.snapshot.can_continue else
           'Validacion de Repositorio' if not results.repo_config.can_continue else
           'Proceso de Parchado' if not results.patching.can_continue else
           'Validacion Post-Parchado' if not results.post_validation.can_continue else
           'Ninguno' }},
       {{- results.post_validation.status | default('No status') }}
-  delegate_to: "{{ server_informes }}"
+  delegate_to: ansibleawx
   vars:
     ansible_connection: ssh
-#    ansible_user: "{{ owner }}"
-#    ansible_password: "{{ ansible_pwd }}"
+    ansible_user: "{{ informe_user }}"
+    ansible_password: "{{ informe_password }}"
