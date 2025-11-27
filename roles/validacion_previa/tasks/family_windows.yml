@@ -120,3 +120,7 @@
         dest: "{{ validacion_previa_log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
         mode: "0755"
       delegate_to: ansibleawx
+      vars:
+        ansible_connection: ssh
+        ansible_user: "{{ informe_user }}"
+        ansible_password: "{{ informe_password }}"

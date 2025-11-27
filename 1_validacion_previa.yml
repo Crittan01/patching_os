@@ -16,11 +16,9 @@
       ansible.builtin.file:
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
-        owner: "{{ owner }}"
-        group: "{{ group }}"
         mode: "0755"
       become: true
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
         ansible_user: "{{ informe_user }}"
@@ -68,11 +66,11 @@
             owner: "{{ owner }}"
             group: "{{ group }}"
             mode: "0755"
-          delegate_to: "{{ server_informes }}"
+          delegate_to: ansibleawx
           vars:
             ansible_connection: ssh
-  #            ansible_user: "{{ owner }}"
-  #            ansible_password: "{{ ansible_pwd }}"
+            ansible_user: "{{ informe_user }}"
+            ansible_password: "{{ informe_password }}"
 
   tasks:
     - name: Validaciones Previas para SLES y REDHAT
