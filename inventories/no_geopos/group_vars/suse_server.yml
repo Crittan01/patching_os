@@ -1,0 +1,189 @@
+---
+categorias_paquetes_base:
+  - kbd # Configuración y manejo del teclado en el sistema
+  - openssh # Herramientas para acceso remoto seguro mediante SSH
+  #  - patterns-base-base # Patrón base del sistema (marcador para dependencias).
+  - patterns-base-minimal_base # Patrón mínimo base para la operación del sistema
+  #  - polkit # Marco para políticas de autorización en el sistema
+  #  - polkit-default-privs # Configuración predeterminada de privilegios para polkit
+  - shadow # Herramientas para la gestión de usuarios y contraseñas
+  - util-linux # Utilidades esenciales como fdisk, mount, etc
+  - which # Comando para localizar binarios en el sistema
+
+categorias_paquetes_opcionales:
+  - kernel-default # Núcleo del sistema operativo
+  - glibc # Librería estándar de GNU para funciones esenciales del sistema
+  - bash # Intérprete de comandos estándar en sistemas Unix/Linux
+  - coreutils # Conjunto de herramientas básicas del sistema (como ls, mv, rm, etc.)
+  - systemd # Administrador de servicios y procesos del sistema
+  - kmod # Herramientas para manejar módulos del kernel
+  - iproute2 # Herramientas para la configuración y monitoreo de redes
+  - wicked # Administrador de red específico para SUSE Linux
+  - openssl # Biblioteca para protocolos de cifrado y seguridad
+  - grub2 # Administrador de arranque
+  - dracut # Herramienta para la generación de imágenes initramfs
+  - zypper # Gestor de paquetes y repositorios
+  - rpm # Herramienta para la gestión de paquetes RPM
+  - libgcrypt20 # Biblioteca para criptografía general
+  - libgnutls30 # Biblioteca para implementar protocolos de seguridad y cifrado (TLS).
+
+# Diccionario de mapeo de versiones SLES
+sles_version_map:
+  "15": "15"
+  "15.1": "15.1"
+  "15.2": "15.2"
+  "15.3": "15.3"
+  "15.4": "15.4"
+  "15.5": "15.5"
+
+# Repositorios para las diferentes versiones de SLES
+sles_repos:
+  "15":
+    - name: "local-module-basesystem-{{ ansible_distribution }}"
+      baseurl: "http://{{ servidor_repo }}/sle15/no_sp"
+      path: /
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.1":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp1"
+      path: /
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.2":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp2"
+      path: /Module-Basesystem
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-module-server-applications"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp2"
+      path: /Module-Server-Applications
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-product-SLES"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp2"
+      path: /Product-SLES
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.3":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp3"
+      path: /Module-Basesystem
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-module-server-applications"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp3"
+      path: /Module-Server-Applications
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-product-SLES"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp3"
+      path: /Product-SLES
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.4":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp4"
+      path: /Module-Basesystem
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-module-server-applications"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp4"
+      path: /Module-Server-Applications
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-product-SLES"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp4"
+      path: /Product-SLES
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.5":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp5"
+      path: /Module-Basesystem
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-module-server-applications"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp5"
+      path: /Module-Server-Applications
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-product-SLES"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp5"
+      path: /Product-SLES
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+
+  "15.6":
+    - name: "local-module-basesystem"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp6"
+      path: /Module-Basesystem
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-module-server-applications"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp6"
+      path: /Module-Server-Applications
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0
+    - name: "local-product-SLES"
+      baseurl: "http://{{ servidor_repo }}/sle15/sp6"
+      path: /Product-SLES
+      type: rpm-md
+      enabled: 1
+      autorefresh: 0
+      gpgcheck: 0
+      ssl_verify: 0

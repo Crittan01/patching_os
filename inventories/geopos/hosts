@@ -1,0 +1,37 @@
+[lote_13]
+# Centos 7 - OK
+#crm2desakubernetes_test ansible_host=10.181.8.234 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware=vcenter vm_name=CRM02_K8S-Ansible vcenter_vmware=vcbogdis05.coldecom.com datacenter_vmware=VxRail-Datacenter
+#disml-qa ansible_host=10.181.8.228 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware=vcenter vm_name=TEST_GEO_CELULAS-Ansible vcenter_vmware=vcbogdis05.coldecom.com datacenter_vmware=Sencinet-Datacenter ansible_python_interpreter=/usr/bin/python2
+#alba5-bk ansible_host=10.45.3.7 ambiente=produccion crq=RFCPRUEBA tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+#TEST_CENTRAL-Ansible ansible_host=10.181.8.227 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware=vcenter vm_name=TEST_CENTRAL-Ansible vcenter_vmware=vcbogdis05.coldecom.com datacenter_vmware=DIBOG-Test ansible_python_interpreter=/usr/bin/python
+#TESTAPLINETBOGDIS01 ambiente=desarrollo crq=crq123 ansible_host=10.181.8.235 # Centos 8 - OK
+#MICROCRMBOGDISTEST ambiente=desarrollo crq=crq1234 ansible_host=10.181.8.232 # Oracle 8 - OK
+#TESTGEODBCENTRAL ambiente=desarrollo crq=crq123 ansible_host=10.181.8.233 # Oracle 9 - OK
+
+akbar-bk ansible_host=172.16.107.7 ambiente=produccion crq='RFC 2025-000368' tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+akede-n1 ansible_host=172.16.134.4 ambiente=produccion crq='RFC 2025-000368' tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+aksin-bk ansible_host=172.16.116.80 ambiente=produccion crq='RFC 2025-000368' tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+
+[lote_13:vars]
+ansible_connection=ssh
+ansible_user=iacolcoauto
+ansible_port=22
+
+[centos_prueba]
+CRM02_K8S ansible_host=10.181.8.234
+TESTAPLINETBOGDIS01 ansible_host=10.181.8.235 # Centos8 - OK
+
+[oracle_prueba]
+MICROCRMBOGDISTEST ansible_host=10.181.8.232 # Oracle 8 - OK
+TESTGEODBCENTRAL ansible_host=10.181.8.233 # Oracle 9 - OK
+
+[redhat_prueba]
+TESTORACLEIDMAN ansible_host=10.181.8.230 # Redhat 7 - OK
+APBOGDISILMT01 ansible_host=10.181.8.231 # Redhat 8 - OK
+
+[server_informes]
+ansibleawx ansible_host=10.181.5.247
+
+[server_informes:vars]
+ansible_connection=ssh
+ansible_python_interpreter= /usr/bin/python3

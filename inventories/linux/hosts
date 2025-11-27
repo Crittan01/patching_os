@@ -1,0 +1,26 @@
+[lote_1]
+oracle8 ansible_host=192.168.20.30 ambiente=produccion crq=CRQDUMMYC0 tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+# FISICO
+# RADIUSBOGAK6801.coldecom.com ip=10.191.3.8 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+
+# AZURE
+# VM-EU2-RPACR-PR.coldecom.com ip=10.0.16.170 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+
+# VCENTER
+# TESTDBFONBOGDI2.coldecom.com ip=10.181.4.241 ambiente=desarrollo crq=CRQDUMMYC1 tipo_vmware=vcenter vm_name=TESTDBFONBOGDI2 vcenter_vmware=vcbogdis05.coldecom.com datacenter_vmware=DIBOG-Test
+
+# STANDALONE
+# TESTDBFONBOGDI2.coldecom.com ip=10.181.4.241 ambiente=produccion crq=RFC 2025-000367 tipo_vmware=standalone vm_name=FSIPIALK02-SOP vcenter_vmware=10.41.3.8 datacenter_vmware=ha-datacenter
+
+[lote_1:vars]
+ansible_user = ansible
+ansible_password = ansible123*
+ansible_connection = ssh
+
+[server_informes]
+ansibleawx ansible_host=192.168.20.85
+
+[server_informes:vars]
+ansible_connection=ssh
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o PreferredAuthentications=password -o PubkeyAuthentication=no'

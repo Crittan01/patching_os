@@ -1,0 +1,27 @@
+[lote_1]
+#akb68-12 ansible_host=10.181.11.185 ambiente=desarrollo crq=CRQDUMMYC0 tipo_vmware=vcenter vm_name=CAJA-AKB68-QA vcenter_vmware=vcbogdis05.coldecom.com datacenter_vmware=Sencinet-Datacenter
+#akb68-02 ansible_host=172.16.11.102 ambiente=produccion crq=RFCPRUEBA tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+akbar-11 ansible_host=172.16.107.111 ambiente=produccion crq=RFCPRUEBA tipo_vmware='' vm_name='' vcenter_vmware='' datacenter_vmware=''
+
+[lote_1:vars]
+ansible_connection=ssh
+ansible_user=iacolcoauto
+
+[centos_prueba]
+CRM02_K8S ansible_host=10.181.8.234
+TESTAPLINETBOGDIS01 ansible_host=10.181.8.235 # Centos8 - OK
+
+[oracle_prueba]
+MICROCRMBOGDISTEST ansible_host=10.181.8.232 # Oracle 8 - OK
+TESTGEODBCENTRAL ansible_host=10.181.8.233 # Oracle 9 - OK
+
+[redhat_prueba]
+TESTORACLEIDMAN ansible_host=10.181.8.230 # Redhat 7 - OK
+APBOGDISILMT01 ansible_host=10.181.8.231 # Redhat 8 - OK
+
+[server_informes]
+ansibleawx ansible_host=10.181.5.247
+
+[server_informes:vars]
+ansible_connection=ssh
+ansible_python_interpreter= /usr/bin/python3
