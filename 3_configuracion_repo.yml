@@ -17,7 +17,7 @@
       ansible.builtin.slurp:
         src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
       register: pre_validation_file
-      delegate_to: "{{ server_informes }}"
+      delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
         ansible_user: "{{ informe_user }}"
