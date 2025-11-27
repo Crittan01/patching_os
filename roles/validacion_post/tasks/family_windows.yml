@@ -13,7 +13,6 @@
     - name: BLOQUE validacion post
       when:
         - previous_results.pre_validation.can_continue
-        - previous_results.snapshot.can_continue
         - previous_results.repo_config.can_continue
         - previous_results.patching.can_continue
       block:
@@ -70,12 +69,9 @@
             - name: Analizar cambios en servicios
               ansible.builtin.set_fact:
                 service_analysis:
-                  stopped_services:
-                    "{{ previous_results.pre_validation.services_initial.active_list | difference(active_services_final) }}"
-                  new_active_services:
-                    "{{ active_services_final | difference(previous_results.pre_validation.services_initial.active_list) }}"
-                  service_details:
-                    "{{ dict(services_info.services |
+                  stopped_services: "{{ previous_results.pre_validation.services_initial.active_list | difference(active_services_final) }}"
+                  new_active_services: "{{ active_services_final | difference(previous_results.pre_validation.services_initial.active_list) }}"
+                  service_details: "{{ dict(services_info.services |
                     selectattr('name', 'in', service_analysis.stopped_services) |
                     map('items') | sum(start=[])) }}"
 
@@ -122,4 +118,4 @@
         ansible_connection: ssh
 #        ansible_user: "{{ owner }}"
 #        ansible_password: "{{ ansible_pwd }}"
-      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+#        ansible_ssh_private_key_file: ~/.ssh/id_rsa

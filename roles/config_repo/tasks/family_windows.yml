@@ -11,7 +11,6 @@
     - name: BLOQUE verificar WSUS
       when:
         - previous_results.pre_validation.can_continue
-        - previous_results.snapshot.can_continue
       block:
         - name: Obtener configuracion de WSUS
           ansible.windows.win_reg_stat:
@@ -30,12 +29,11 @@
       rescue:
         - name: Registrar error de conectividad
           ansible.builtin.set_fact:
-            repo_error:
-              "{{ repo_error | combine({
-                'connectivity': {
-                  'error': ansible_failed_result.msg | default('Error en Conectividad') | regex_replace('\n', ' '),
-                  'type': 'CONNECTIVITY_ERROR',
-                  'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
+            repo_error: "{{ repo_error | combine({
+              'connectivity': {
+              'error': ansible_failed_result.msg | default('Error en Conectividad') | regex_replace('\n', ' '),
+              'type': 'CONNECTIVITY_ERROR',
+              'task': ansible_failed_task.name | default('unknown') if ansible_failed_task is defined else 'unknown'}}) }}"
 
     - name: Crear JSON de resultados
       ansible.builtin.template:
@@ -49,4 +47,4 @@
         ansible_connection: ssh
 #        ansible_user: "{{ owner }}"
 #        ansible_password: "{{ ansible_pwd }}"
-      #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+#        ansible_ssh_private_key_file: ~/.ssh/id_rsa

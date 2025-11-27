@@ -40,51 +40,7 @@
       - Resultado: {{ results.pre_validation.reboot_status.reboot_details.success | ternary('Exitoso', 'Fallido') }}
       {% endif %}
 
-      2. SNAPSHOT PRE-PARCHADO
-      -------------------------
-      Estado: {{ results.snapshot.status }}
-      {% if results.snapshot.status == 'SKIPPED' %}
-      Razón: {{ results.snapshot.skipped_reason }}
-      {% else %}
-      {% if results.snapshot.virtualization_details is defined %}
-      Detalles de Virtualización:
-      - Tipo: {{ results.snapshot.virtualization_details.type }}
-      - Rol: {{ results.snapshot.virtualization_details.role }}
-      - vCenter: {{ results.snapshot.virtualization_details.vcenter }}
-      - Datacenter: {{ results.snapshot.virtualization_details.datacenter }}
-      - Nombre VM: {{ results.snapshot.virtualization_details.vm_name }}
-      - Tipo VM: {{ results.snapshot.virtualization_details.tipo_vmware }}
-      {% endif %}
-      {% if results.snapshot.snapshot_details is defined %}
-      Detalles del Snapshot:
-      - Nombre: {{ results.snapshot.snapshot_details.name }}
-      - Descripción: {{ results.snapshot.snapshot_details.description }}
-      - Fecha/Hora: {{ results.snapshot.snapshot_details.created_at }}
-      - Operación: {{ results.snapshot.snapshot_details.operation }}
-      {% else %}
-
-      Detalles del Snapshot: {{ results.snapshot.details.reason }}
-      {% endif %}
-
-      {% if results.snapshot.status == 'FAILED' %}
-      Error:
-      {% if results.snapshot.errors.credentials is defined %}
-      - Tipo: Credenciales
-        Detalle: {{ results.snapshot.errors.credentials.type }}
-        Mensaje: {{ results.snapshot.errors.credentials.details.error_detail }}
-      {% endif %}
-      {% if results.snapshot.errors.vm_not_found is defined %}
-      - Tipo: VM no encontrada
-        Detalle: {{ results.snapshot.errors.vm_not_found.type }}
-        Mensaje: {{ results.snapshot.errors.vm_not_found.details.error_detail }}
-      {% endif %}
-      {% if not results.snapshot.errors.credentials is defined and not results.snapshot.errors.vm_not_found is defined %}
-      - Mensaje: No hay detalles específicos del error
-      {% endif %}
-      {% endif %}
-      {% endif %}
-
-      3. VALIDACION DE REPOSITORIO WINDOWS UPDATE
+      2. VALIDACION DE REPOSITORIO WINDOWS UPDATE
       -----------------------------------------
       Estado: {{ results.repo_config.status }}
       - WSUS Configurado: {{ results.repo_config.wsus_details.registry_exists | ternary('Si', 'No') }}
@@ -94,7 +50,7 @@
       - Observación: {{ results.repo_config.wsus_details.error_details }}
       {% endif %}
 
-      4. PARCHADO
+      3. PARCHADO
       ----------
       Estado: {{ results.patching.status }}
       Estado de Ejecución: {{ results.patching.execution_state }}
@@ -156,7 +112,7 @@
       - Observación: Reinicio requerido y ejecutado durante la instalación de actualizaciones
       {% endif %}
 
-      5. VALIDACION POST-PARCHADO
+      4. VALIDACION POST-PARCHADO
       -------------------------
       Estado: {{ results.post_validation.status }}
       Estado de Ejecución: {{ results.post_validation.execution_state }}
@@ -207,15 +163,13 @@
       - Resultado: {{ results.post_validation.final_reboot.success | ternary('Exitoso', 'Fallido') }}
       {% endif %}
 
-      6. RESUMEN FINAL
+      5. RESUMEN FINAL
       --------------
       Estado General: {{ results.post_validation.status }}
       Observación: {{ results.post_validation.execution_state }}
 
       Punto de Fallo: {% if not results.pre_validation.can_continue %}
                        Validacion Previa
-                     {% elif not results.snapshot.can_continue %}
-                       Validacion y/o toma de Snapshot
                      {% elif not results.repo_config.can_continue %}
                        Configuracion de Windows Update
                      {% elif not results.patching.can_continue %}
@@ -240,7 +194,7 @@
     ansible_connection: ssh
 #    ansible_user: "{{ owner }}"
 #    ansible_password: "{{ ansible_pwd }}"
-  #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+#        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
 - name: Mostrar informe en consola
   ansible.builtin.debug:

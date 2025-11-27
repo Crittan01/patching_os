@@ -1,10 +1,8 @@
 {
   "pre_validation": {{ previous_results.pre_validation | to_json }},
-  "snapshot": {{ previous_results.snapshot | to_json }},
   "repo_config": {{ previous_results.repo_config | to_json }},
   "patching": {
     "status": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and 
-                                   previous_results.snapshot.can_continue and 
                                    previous_results.repo_config.can_continue) else
                   'FAILED' if (search_error.msg is defined or 
                              download_error.msg is defined or 
@@ -12,14 +10,12 @@
                              fatal_error.msg is defined) else
                   'OK' }}",
     "can_continue": {{ (previous_results.pre_validation.can_continue and
-                       previous_results.snapshot.can_continue and
                        previous_results.repo_config.can_continue and
                        not (search_error.msg is defined or 
                            download_error.msg is defined or 
                            installation_error.msg is defined or
                            fatal_error.msg is defined)) | lower }},
     "execution_state": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and 
-                                            previous_results.snapshot.can_continue and 
                                             previous_results.repo_config.can_continue) else
                            'FAILED' if (search_error.msg is defined or 
                                       download_error.msg is defined or 
@@ -68,7 +64,6 @@
     },
     "fatal_error": {{ fatal_error | default({}) | to_json }},
     "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
-                         'Snapshot failed' if not previous_results.snapshot.can_continue else
                          'Repository configuration failed' if not previous_results.repo_config.can_continue else '' }}"
   }
 }

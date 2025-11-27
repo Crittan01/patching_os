@@ -4,7 +4,7 @@
   block:
     - name: Inicializar variables por defecto
       ansible.builtin.set_fact:
-        update_categories: ["SecurityUpdates", "CriticalUpdates", "Updates"]
+        update_categories: ["*"]
         update_state:
           has_updates: false
           search_completed: false
@@ -21,7 +21,6 @@
     - name: Ejecutar proceso de parchado
       when:
         - previous_results.pre_validation.can_continue
-        - previous_results.snapshot.can_continue
         - previous_results.repo_config.can_continue
       block:
         - name: Buscar actualizaciones disponibles
@@ -135,8 +134,8 @@
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+  #        ansible_user: "{{ owner }}"
+  #        ansible_password: "{{ ansible_pwd }}"
 
   rescue:
     - name: Crear JSON de resultados en caso de error
@@ -151,4 +150,4 @@
         ansible_connection: ssh
 #        ansible_user: "{{ owner }}"
 #        ansible_password: "{{ ansible_pwd }}"
-    #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
+#        ansible_ssh_private_key_file: ~/.ssh/id_rsa

@@ -10,26 +10,27 @@
     log_dir: "/var/log/ansible_patches"
 
   pre_tasks:
-    - name: Leer resultado de snapshot
+    - name: Leer resultado de pre-validación
       when:
         - ambiente | lower == ambiente_target | lower
         - crq | lower == crq_input | lower
       ansible.builtin.slurp:
-        src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/snapshot_{{ inventory_hostname }}.json"
-      register: snapshot_file
+        src: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}/pre_validation_{{ inventory_hostname }}.json"
+      register: pre_validation_file
       delegate_to: "{{ server_informes }}"
       vars:
         ansible_connection: ssh
-#        ansible_user: "{{ owner }}"
-#        ansible_password: "{{ ansible_pwd }}"
+        #        ansible_user: "{{ owner }}"
+        #        ansible_password: "{{ ansible_pwd }}"
+        ansible_python_interpreter: /usr/bin/python3
     #        ansible_ssh_private_key_file: ~/.ssh/id_rsa
 
-    - name: Decodificar JSON de snapshot
+    - name: Decodificar JSON de pre-validación
       when:
         - ambiente | lower == ambiente_target | lower
         - crq | lower == crq_input | lower
       ansible.builtin.set_fact:
-        previous_results: "{{ snapshot_file['content'] | b64decode | from_json }}"
+        previous_results: "{{ pre_validation_file['content'] | b64decode | from_json }}"
 
     - name: Recolectar FACTS
       ansible.builtin.setup:
@@ -50,10 +51,11 @@
       block:
         - name: Registrar error de recolección de facts
           ansible.builtin.set_fact:
-            fact_error: {
-              "error": "No se pudo establecer conexion con el servidor",
-              "type": "CONNECT_FAILED"
-            }
+            fact_error:
+              {
+                "error": "No se pudo establecer conexion con el servidor",
+                "type": "CONNECT_FAILED",
+              }
 
         - name: Crear JSON para host con facts fallidos
           ansible.builtin.copy:
@@ -74,8 +76,8 @@
           delegate_to: "{{ server_informes }}"
           vars:
             ansible_connection: ssh
-#            ansible_user: "{{ owner }}"
-#            ansible_password: "{{ ansible_pwd }}"
+  #            ansible_user: "{{ owner }}"
+  #            ansible_password: "{{ ansible_pwd }}"
   tasks:
     - name: Configuracion Repositorios para Familia SLES
       when:

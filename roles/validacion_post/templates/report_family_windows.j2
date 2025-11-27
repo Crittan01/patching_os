@@ -1,17 +1,14 @@
 {
   "pre_validation": {{ previous_results.pre_validation | to_json }},
-  "snapshot": {{ previous_results.snapshot | to_json }},
   "repo_config": {{ previous_results.repo_config | to_json }},
   "patching": {{ previous_results.patching | to_json }},
   "post_validation": {
     "status": "{{ 'SKIPPED' if not (previous_results.pre_validation.can_continue and
-                                   previous_results.snapshot.can_continue and
                                    previous_results.repo_config.can_continue and
                                    previous_results.patching.can_continue) else
                  'FAILED' if (reboot_error is defined) else
                  'OK' }}",
     "can_continue": {{ (previous_results.pre_validation.can_continue and
-                      previous_results.snapshot.can_continue and
                       previous_results.repo_config.can_continue and
                       previous_results.patching.can_continue) | lower }},
     "execution_state": "{{
@@ -52,7 +49,6 @@
       }
     },
     "skipped_reason": "{{ 'Pre-validation failed' if not previous_results.pre_validation.can_continue else
-                        'Snapshot failed' if not previous_results.snapshot.can_continue else
                         'Repository configuration failed' if not previous_results.repo_config.can_continue else
                         'Patching failed' if not previous_results.patching.can_continue else '' }}"
   }
