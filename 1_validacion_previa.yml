@@ -7,7 +7,7 @@
     - vars/global.yml
 
   vars:
-    log_dir: "/var/log/ansible_patches"
+    log_dir: "/tmp/ansible_patches"
 
   pre_tasks:
     - name: Crear directorio de logs
