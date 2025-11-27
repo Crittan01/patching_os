@@ -7,7 +7,7 @@
     - vars/global.yml
 
   vars:
-    log_dir: "/tmp/ansible_patches"
+    log_dir: "/var/log/ansible_patches"
 
   pre_tasks:
     - name: Crear directorio de logs
@@ -19,6 +19,7 @@
         owner: "{{ owner }}"
         group: "{{ group }}"
         mode: "0755"
+      become: true
       delegate_to: ansibleawx
 
     - name: Recolectar FACTS
