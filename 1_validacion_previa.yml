@@ -17,7 +17,6 @@
         path: "{{ log_dir }}/{{ crq_input | upper }}/{{ inventory_hostname }}"
         state: directory
         mode: "0755"
-      become: true
       delegate_to: ansibleawx
       vars:
         ansible_connection: ssh
