@@ -28,7 +28,7 @@
       block:
         - name: Verificar reinicio pendiente
           ansible.builtin.debug:
-            var: ansible_reboot_pending
+            msg: "Reboot pending: {{ ansible_reboot_pending | default(false) }}"
 
         - name: Ejecutar reinicio si está pendiente
           ansible.windows.win_reboot:
@@ -36,12 +36,13 @@
             post_reboot_delay: 120 # 2 minutos de espera después del reinicio
             reboot_timeout: 1200 # 20 minutos máximo para el reinicio
             msg: "Reinicio requerido antes del parchado"
-          when: ansible_reboot_pending
+          when: ansible_reboot_pending | default(false)
           register: reboot_result
 
         - name: Debug - Ejecutar reinicio si está pendiente
           ansible.builtin.debug:
             var: reboot_result
+          when: reboot_result is defined
       rescue:
         - name: Registrar Error de reinicio
           ansible.builtin.set_fact:

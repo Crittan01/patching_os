@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Informe Parchado — {{ crq_input | upper }} · {{ inventory_hostname }}</title>
+  <style>
+    {% include 'partials/email_styles.j2' %}
+  </style>
+</head>
+<body>
+<div class="container">
+
+  {# ── Variables globales de estado ── #}
+  {% set overall_ok = results.pre_validation.can_continue and
+                      results.repo_config.can_continue and
+                      results.patching.can_continue and
+                      results.post_validation.can_continue %}
+
+  {% if not results.pre_validation.can_continue %}
+    {% set fault_point = "Validación Previa" %}
+  {% elif not results.repo_config.can_continue %}
+    {% set fault_point = "Configuración de Repositorio" %}
+  {% elif not results.patching.can_continue %}
+    {% set fault_point = "Proceso de Parchado" %}
+  {% elif not results.post_validation.can_continue %}
+    {% set fault_point = "Validación Post-Parchado" %}
+  {% else %}
+    {% set fault_point = "" %}
+  {% endif %}
+
+  <!-- ══ HEADER ══ -->
+  <div class="header">
+    <h2>Informe de Parchado — Red Hat Enterprise Linux</h2>
+    <p>{{ crq_input | upper }} &nbsp;·&nbsp; {{ inventory_hostname }} &nbsp;·&nbsp; Lote: {{ lote | default('N/A') }}</p>
+  </div>
+
+  <!-- ══ BANNER ESTADO GENERAL ══ -->
+  {% if overall_ok %}
+  <div class="banner-success">
+    Parchado completado exitosamente en {{ inventory_hostname }}
+  </div>
+  {% else %}
+  <div class="banner-error">
+    ✖ Parchado finalizado con errores — Punto de fallo: {{ fault_point }}
+  </div>
+  {% endif %}
+
+  <!-- ══ INFORMACIÓN GENERAL ══ -->
+  <div class="info-box">
+    <p class="box-title">Información del Servidor</p>
+    <ul>
+      <li><strong>Hostname:</strong> {{ inventory_hostname }}</li>
+      <li><strong>IP:</strong> {{ ip | default(ansible_host) }}</li>
+      <li><strong>Sistema Operativo:</strong> {{ ansible_distribution }} {{ ansible_distribution_major_version }}.{{ ansible_distribution_release | default('x') }}</li>
+      <li><strong>Arquitectura:</strong> {{ ansible_architecture | default('x86_64') }}</li>
+      <li><strong>Gestor de Paquetes:</strong> {{ results.patching.update_details.package_manager | default('N/A') | upper }}</li>
+      <li><strong>CRQ:</strong> {{ crq_input | upper }}</li>
+      <li><strong>Lote:</strong> {{ lote | default('N/A') }}</li>
+      <li><strong>Inicio:</strong> {{ results.pre_validation.timestamp }}</li>
+      <li><strong>Fin:</strong> {{ results.post_validation.timestamp }}</li>
+    </ul>
+  </div>
+
+  <!-- ══ RESUMEN EJECUTIVO (stats) ══ -->
+  <div class="section-title">Resumen Ejecutivo</div>
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-value {{ 'context-ok' if results.pre_validation.can_continue else 'context-error' }}">
+        {{ 'OK' if results.pre_validation.can_continue else 'FAIL' }}
+      </div>
+      <div class="stat-label">Validación Previa</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value {{ 'context-ok' if results.repo_config.can_continue else ('context-alert' if results.repo_config.status == 'SKIPPED' else 'context-error') }}">
+        {{ results.repo_config.status | default('N/A') }}
+      </div>
+      <div class="stat-label">Repositorios</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value {{ 'context-ok' if results.patching.can_continue else ('context-alert' if results.patching.status == 'SKIPPED' else 'context-error') }}">
+        {{ results.patching.package_changes.actualizados.total | default(0) }}
+      </div>
+      <div class="stat-label">Paquetes Actualizados</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value {{ 'context-ok' if results.post_validation.can_continue else 'context-error' }}">
+        {{ 'OK' if results.post_validation.can_continue else 'FAIL' }}
+      </div>
+      <div class="stat-label">Validación Post</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value {{ 'context-alert' if results.post_validation.reboot.required | default(false) else 'context-ok' }}">
+        {{ 'SÍ' if results.post_validation.reboot.required | default(false) else 'NO' }}
+      </div>
+      <div class="stat-label">Reinicio Requerido</div>
+    </div>
+  </div>
+
+  <!-- ══ PIPELINE DE FASES ══ -->
+  <div class="section-title">Estado por Fase</div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Fase</th>
+        <th class="center">Estado</th>
+        <th>Timestamp</th>
+        <th>Detalle</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="center">1</td>
+        <td><strong>Validación Previa</strong></td>
+        <td class="center">
+          {% if results.pre_validation.status == 'OK' %}
+            <span class="badge badge-ok">OK</span>
+          {% else %}
+            <span class="badge badge-error">{{ results.pre_validation.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ results.pre_validation.timestamp }}</td>
+        <td>
+          Filesystem: {{ results.pre_validation.filesystem_details.filesystem_status | default({}) | length }} punto(s) —
+          Servicios activos: {{ results.pre_validation.services_initial.active | default(0) }}
+        </td>
+      </tr>
+      <tr>
+        <td class="center">2</td>
+        <td><strong>Config. Repositorios</strong></td>
+        <td class="center">
+          {% if results.repo_config.status == 'OK' %}
+            <span class="badge badge-ok">OK</span>
+          {% elif results.repo_config.status == 'SKIPPED' %}
+            <span class="badge badge-skipped">SKIPPED</span>
+          {% else %}
+            <span class="badge badge-error">{{ results.repo_config.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ results.repo_config.timestamp | default('—') }}</td>
+        <td>
+          {% if results.repo_config.status == 'SKIPPED' %}
+            {{ results.repo_config.skipped_reason | default('Omitido por fase anterior') }}
+          {% else %}
+            Repos accesibles: {{ results.repo_config.repo_details.detected_repos.accessible_count | default(0) }} /
+            {{ results.repo_config.repo_details.detected_repos.enabled_count | default(0) }}
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td class="center">3</td>
+        <td><strong>Parchado</strong></td>
+        <td class="center">
+          {% if results.patching.status == 'OK' %}
+            <span class="badge badge-ok">OK</span>
+          {% elif results.patching.status == 'SKIPPED' %}
+            <span class="badge badge-skipped">SKIPPED</span>
+          {% else %}
+            <span class="badge badge-error">{{ results.patching.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ results.patching.timestamp | default('—') }}</td>
+        <td>
+          {% if results.patching.status == 'SKIPPED' %}
+            {{ results.patching.skipped_reason | default('Omitido por fase anterior') }}
+          {% else %}
+            {{ results.patching.update_details.update_status | default('N/A') }} —
+            Actualizados: {{ results.patching.package_changes.actualizados.total | default(0) }} |
+            Nuevos: {{ results.patching.package_changes.nuevos | default([]) | length }} |
+            Eliminados: {{ results.patching.package_changes.eliminados | default([]) | length }}
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td class="center">4</td>
+        <td><strong>Validación Post-Parchado</strong></td>
+        <td class="center">
+          {% if results.post_validation.status == 'OK' %}
+            <span class="badge badge-ok">OK</span>
+          {% elif results.post_validation.status == 'SKIPPED' %}
+            <span class="badge badge-skipped">SKIPPED</span>
+          {% else %}
+            <span class="badge badge-error">{{ results.post_validation.status }}</span>
+          {% endif %}
+        </td>
+        <td>{{ results.post_validation.timestamp | default('—') }}</td>
+        <td>
+          {% if results.post_validation.status == 'SKIPPED' %}
+            {{ results.post_validation.skipped_reason | default('Omitido por fase anterior') }}
+          {% else %}
+            Servicios finales: {{ results.post_validation.services.comparison.active_services_final | default(0) }} —
+            Cambiaron: {{ results.post_validation.services.comparison.services_changed.total | default(0) }}
+          {% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ══ SECCIÓN 1 — VALIDACIÓN PREVIA ══ -->
+  <div class="section-title">01 · Validación Previa</div>
+  <div class="info-box">
+    <p class="box-title">Espacio en Disco por Filesystem</p>
+    {% if results.pre_validation.filesystem_details is defined and
+          results.pre_validation.filesystem_details.filesystem_status is defined %}
+      <table>
+        <thead>
+          <tr>
+            <th>Filesystem</th>
+            <th class="center">Disponible (MB)</th>
+            <th class="center">Requerido (MB)</th>
+            <th class="center">Uso</th>
+            <th class="center">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mount, data in results.pre_validation.filesystem_details.filesystem_status.items() %}
+            {% set pct = [(data.disponible | int * 100 / [data.requerido | int, 1] | max), 100] | min | int %}
+            <tr>
+              <td><code>{{ mount }}</code></td>
+              <td class="center">{{ data.disponible }}</td>
+              <td class="center">{{ data.requerido }}</td>
+              <td style="min-width:120px;">
+                <div class="fs-bar-track">
+                  <div class="fs-bar-fill {{ 'fs-bar-ok' if data.cumple else 'fs-bar-fail' }}"
+                       style="width:{{ [pct, 100] | min }}%"></div>
+                </div>
+              </td>
+              <td class="center">
+                {% if data.cumple %}
+                  <span class="badge badge-ok">Cumple</span>
+                {% else %}
+                  <span class="badge badge-error">Insuficiente</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="color:#666; font-size:12px;">Sin información de filesystem disponible.</p>
+    {% endif %}
+
+    {% if results.pre_validation.services_initial is defined %}
+      <p style="margin-top:10px; font-size:13px;">
+        <strong>Servicios totales:</strong> {{ results.pre_validation.services_initial.total | default(0) }} &nbsp;|&nbsp;
+        <strong>Servicios activos al inicio:</strong> {{ results.pre_validation.services_initial.active | default(0) }}
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- ══ SECCIÓN 2 — REPOSITORIOS ══ -->
+  <div class="section-title">02 · Configuración de Repositorios</div>
+  <div class="info-box">
+    {% if results.repo_config.status == 'SKIPPED' %}
+      <p style="color:#856404; font-size:13px;">
+        {{ results.repo_config.skipped_reason | default('Omitido por fase anterior') }}
+      </p>
+    {% else %}
+      {% if results.repo_config.repo_details is defined %}
+        <p style="font-size:13px; margin-bottom:10px;">
+          <strong>Repositorios detectados:</strong> {{ results.repo_config.repo_details.detected_repos.enabled_count | default(0) }} &nbsp;|&nbsp;
+          <strong>Accesibles:</strong> <span class="status-ok">{{ results.repo_config.repo_details.detected_repos.accessible_count | default(0) }}</span> &nbsp;|&nbsp;
+          <strong>Inaccesibles:</strong>
+          {% if results.repo_config.repo_details.detected_repos.inaccessible_count | default(0) > 0 %}
+            <span class="status-error">{{ results.repo_config.repo_details.detected_repos.inaccessible_count }}</span>
+          {% else %}
+            <span class="status-ok">0</span>
+          {% endif %}
+          &nbsp;|&nbsp;
+          <strong>Gestor:</strong> {{ results.repo_config.repo_details.package_manager | default('N/A') | upper }}
+        </p>
+      {% endif %}
+      {% if results.repo_config.create_repos is defined and results.repo_config.create_repos | length > 0 %}
+        <p class="box-title" style="margin-bottom:6px;">Repositorios configurados:</p>
+        <div class="pill-wrap">
+          {% for repo in results.repo_config.create_repos %}
+            <span class="pill">{{ repo }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- ══ SECCIÓN 3 — PARCHADO ══ -->
+  <div class="section-title">03 · Proceso de Parchado</div>
+  {% if results.patching.status == 'SKIPPED' %}
+    <div class="banner-warning">
+      Parchado omitido — {{ results.patching.skipped_reason | default('Fase anterior no completada') }}
+    </div>
+  {% else %}
+    <div class="info-box">
+      <p class="box-title">Estadísticas de Paquetes</p>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">{{ results.patching.package_changes.actualizados.total | default(0) }}</div>
+          <div class="stat-label">Actualizados</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value context-ok">{{ results.patching.package_changes.nuevos | default([]) | length }}</div>
+          <div class="stat-label">Nuevos</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value {{ 'context-alert' if results.patching.package_changes.eliminados | default([]) | length > 0 else '' }}">
+            {{ results.patching.package_changes.eliminados | default([]) | length }}
+          </div>
+          <div class="stat-label">Eliminados</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ results.patching.package_changes.total_antes | default(0) }}</div>
+          <div class="stat-label">Total Antes</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ results.patching.package_changes.total_despues | default(0) }}</div>
+          <div class="stat-label">Total Después</div>
+        </div>
+      </div>
+      <p style="font-size:12px; margin-top:8px;">
+        <strong>Estado transacción:</strong> {{ results.patching.update_details.update_status | default('N/A') }}
+        {% if results.patching.update_details.transaction_id is defined %}
+          &nbsp;|&nbsp; <strong>ID transacción:</strong> {{ results.patching.update_details.transaction_id }}
+        {% endif %}
+        &nbsp;|&nbsp; <strong>Gestor:</strong> {{ results.patching.update_details.package_manager | default('N/A') | upper }}
+      </p>
+    </div>
+
+    {% if results.patching.package_changes.actualizados.detalles is defined and
+          results.patching.package_changes.actualizados.detalles | length > 0 %}
+      <div class="info-box">
+        <p class="box-title">Paquetes Actualizados ({{ results.patching.package_changes.actualizados.total | default(0) }})</p>
+        <div class="pill-wrap">
+          {% for pkg in results.patching.package_changes.actualizados.detalles | sort %}
+            <span class="pill pill-update">{{ pkg }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if results.patching.package_changes.nuevos is defined and
+          results.patching.package_changes.nuevos | length > 0 %}
+      <div class="info-box">
+        <p class="box-title">Paquetes Nuevos ({{ results.patching.package_changes.nuevos | length }})</p>
+        <div class="pill-wrap">
+          {% for pkg in results.patching.package_changes.nuevos | sort %}
+            <span class="pill pill-new">{{ pkg }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% if results.patching.package_changes.eliminados is defined and
+          results.patching.package_changes.eliminados | length > 0 %}
+      <div class="info-box">
+        <p class="box-title">Paquetes Eliminados ({{ results.patching.package_changes.eliminados | length }})</p>
+        <div class="pill-wrap">
+          {% for pkg in results.patching.package_changes.eliminados | sort %}
+            <span class="pill pill-del">{{ pkg }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- ══ SECCIÓN 4 — VALIDACIÓN POST ══ -->
+  <div class="section-title">04 · Validación Post-Parchado</div>
+  {% if results.post_validation.status == 'SKIPPED' %}
+    <div class="banner-warning">
+      Validación post omitida — {{ results.post_validation.skipped_reason | default('Fase anterior no completada') }}
+    </div>
+  {% else %}
+    <div class="info-box">
+      <p class="box-title">Comparativa de Servicios</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Métrica</th>
+            <th class="center">Antes del Parchado</th>
+            <th class="center">Después del Parchado</th>
+            <th class="center">Diferencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Servicios activos</td>
+            <td class="center">{{ results.post_validation.services.comparison.active_services_initial | default(0) }}</td>
+            <td class="center">{{ results.post_validation.services.comparison.active_services_final | default(0) }}</td>
+            <td class="center">
+              {% set diff = (results.post_validation.services.comparison.active_services_final | default(0) | int) -
+                            (results.post_validation.services.comparison.active_services_initial | default(0) | int) %}
+              {% if diff == 0 %}
+                <span class="status-ok">0</span>
+              {% elif diff > 0 %}
+                <span class="status-ok">+{{ diff }}</span>
+              {% else %}
+                <span class="status-error">{{ diff }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td>Servicios que cambiaron de estado</td>
+            <td class="center">—</td>
+            <td class="center">{{ results.post_validation.services.comparison.services_changed.total | default(0) }}</td>
+            <td class="center">
+              {% if results.post_validation.services.comparison.services_changed.total | default(0) | int == 0 %}
+                <span class="status-ok">Sin cambios</span>
+              {% else %}
+                <span class="status-warn">Revisar</span>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {% if results.post_validation.services.comparison.services_changed.affected_services is defined and
+            results.post_validation.services.comparison.services_changed.affected_services | length > 0 %}
+        <div class="banner-warning" style="margin-top:10px;">
+          <strong>Servicios que cambiaron de estado ({{ results.post_validation.services.comparison.services_changed.total }}):</strong><br/>
+          <div class="pill-wrap" style="margin-top:8px;">
+            {% for svc in results.post_validation.services.comparison.services_changed.affected_services | sort %}
+              <span class="pill" style="border-color:#fcd34d; background:#fffbeb; color:#856404;">{{ svc }}</span>
+            {% endfor %}
+          </div>
+          {% if results.post_validation.services.comparison.services_changed.recovery_attempts is defined %}
+            <p style="margin-top:10px; font-size:12px;">
+              <strong>Intentos de recuperación —</strong>
+              Exitosos: <span class="status-ok">{{ results.post_validation.services.comparison.services_changed.recovery_attempts.successful | default(0) }}</span> &nbsp;|&nbsp;
+              Fallidos: <span class="status-error">{{ results.post_validation.services.comparison.services_changed.recovery_attempts.failed | default(0) }}</span>
+            </p>
+          {% endif %}
+        </div>
+      {% else %}
+        <p style="margin-top:8px; font-size:13px;" class="status-ok">Sin cambios en el estado de los servicios</p>
+      {% endif %}
+    </div>
+
+    {% if results.post_validation.reboot is defined %}
+      {% if results.post_validation.reboot.required %}
+        <div class="reboot-required">
+          🔄 <strong>Reinicio requerido:</strong> {{ results.post_validation.reboot.message | default('El sistema debe reiniciarse para aplicar los cambios') }}
+        </div>
+      {% else %}
+        <div class="reboot-ok">
+          <strong>Sin reinicio requerido:</strong> {{ results.post_validation.reboot.message | default('El sistema no requiere reinicio') }}
+        </div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
+  <!-- ══ FOOTER ══ -->
+  <div class="footer">
+    <p>Este es un informe automático generado por AWX / Ansible Automation Platform</p>
+    <p class="team-name">NTT DATA · Empresa — Automatización de Parchado</p>
+    <p style="margin-top:5px;">
+      CRQ: {{ crq_input | upper }} &nbsp;|&nbsp;
+      Host: {{ inventory_hostname }} &nbsp;|&nbsp;
+      Generado: {{ ansible_date_time.iso8601 }}
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
