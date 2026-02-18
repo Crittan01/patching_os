@@ -6,6 +6,7 @@
 - name: Preparar variables para el informe HTML
   ansible.builtin.set_fact:
     informe_filename: "informe_{{ crq_input | lower }}_{{ inventory_hostname }}.html"
+    teams_webhook_url: "https://everisgroup.webhook.office.com/webhookb2/22dd3f7f-54b8-46c5-94af-9f5dd6f7b8b9@3048dc87-43f0-4100-9acb-ae1971c79395/IncomingWebhook/a7728c00ab044e5688aada2606a6a92b/af2f576e-f902-49dd-91b5-e47ebf9e62f3/V2fhq90B6ZzGm7_3pmrmWXzwVPvMHrhgYo4636qVM8Yl81"
 
 - name: Generar informe HTML
   ansible.builtin.template:
@@ -18,6 +19,18 @@
     ansible_user: "{{ informe_user }}"
     ansible_password: "{{ informe_password }}"
   register: informe_result
+
+- name: Enviar notificación Teams
+  ansible.builtin.uri:
+    url: "{{ teams_webhook_url }}"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ lookup('template', 'teams_notify_rhel.j2') }}"
+    status_code: 200, 202
+  delegate_to: localhost
+  when: teams_webhook_url is defined and teams_webhook_url | length > 0
 
 - name: Confirmar generación del informe
   ansible.builtin.debug:
