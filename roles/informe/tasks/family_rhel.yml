@@ -28,9 +28,16 @@
       Content-Type: "application/json"
     body_format: json
     body: "{{ lookup('template', 'teams_notify_rhel.j2') }}"
-    status_code: 200, 202
+    status_code: [200, 202]
   delegate_to: localhost
+  vars:
+    _ok: >-
+      {{ results.pre_validation.can_continue | bool and
+         results.repo_config.can_continue | bool and
+         results.patching.can_continue | bool and
+         results.post_validation.can_continue | bool }}
   when: teams_webhook_url is defined and teams_webhook_url | length > 0
+
 
 - name: Confirmar generación del informe
   ansible.builtin.debug:

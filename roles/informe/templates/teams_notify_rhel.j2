@@ -11,7 +11,7 @@
 
           {
             "type": "Container",
-            "style": "{% if _overall_ok | bool %}good{% else %}attention{% endif %}",
+            "style": "{% if _ok | bool %}good{% else %}attention{% endif %}",
             "items": [
               {
                 "type": "ColumnSet",
@@ -44,7 +44,7 @@
                     "items": [
                       {
                         "type": "TextBlock",
-                        "text": "{% if _overall_ok | bool %}✔ EXITOSO{% else %}✖ FALLIDO{% endif %}",
+                        "text": "{% if _ok | bool %}✔ EXITOSO{% else %}✖ FALLIDO{% endif %}",
                         "size": "Medium",
                         "weight": "Bolder",
                         "color": "Light",
@@ -84,7 +84,6 @@
                     "type": "TextBlock",
                     "text": "{{ ip | default(ansible_host) }}",
                     "size": "Small",
-                    "color": "Default",
                     "isSubtle": true,
                     "spacing": "None"
                   }
@@ -236,7 +235,7 @@
                 "items": [
                   {
                     "type": "TextBlock",
-                    "text": "PAQUETES ACTUALIZADOS",
+                    "text": "ACTUALIZADOS",
                     "size": "Small",
                     "weight": "Bolder",
                     "color": "Accent",
@@ -320,7 +319,7 @@
             ]
           },
 
-          {% if not _overall_ok | bool %}
+          {% if not _ok | bool %}
           {
             "type": "TextBlock",
             "text": "⚠ Punto de fallo: {% if not results.pre_validation.can_continue %}Validación Previa{% elif not results.repo_config.can_continue %}Configuración de Repositorio{% elif not results.patching.can_continue %}Proceso de Parchado{% else %}Validación Post-Parchado{% endif %}",
@@ -341,20 +340,6 @@
             "spacing": "Medium"
           }
 
-        ],
-        "actions": [
-          {
-            "type": "Action.OpenUrl",
-            "title": "Ver Informe HTML",
-            "url": "{{ informe_url | default('file://' + log_dir + '/' + crq_input | upper + '/' + inventory_hostname + '/' + informe_filename) }}"
-          }
-          {% if aap_job_url is defined and aap_job_url | length > 0 %},
-          {
-            "type": "Action.OpenUrl",
-            "title": "Ver Job en AAP",
-            "url": "{{ aap_job_url }}"
-          }
-          {% endif %}
         ]
       }
     }
